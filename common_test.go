@@ -3,6 +3,7 @@ package binder
 import (
 	"mime/multipart"
 	"net/http"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -67,6 +68,15 @@ func (p Post) ValidateBinder(req *http.Request, errors Errors) Errors {
 		})
 	}
 	return errors
+}
+
+func newRequest(method, query, body, contentType string) *http.Request {
+	req, err := http.NewRequest(method, query, strings.NewReader(body))
+	if err != nil {
+		panic(err)
+	}
+	req.Header.Add("Content-Type", contentType)
+	return req
 }
 
 const (

@@ -395,15 +395,8 @@ func setWithProperType(valueKind reflect.Kind, val string, structField reflect.V
 	}
 }
 
-func ensurePointer(obj interface{}) {
-	if reflect.TypeOf(obj).Kind() != reflect.Ptr {
-		panic("Pointer to a binding model is required")
-	}
-}
-
-// validate will try to cast the obj to the binder validator interface and run the validateBinder function
+// validate by the build in validation rules and tries to run the model ValidateBinder function if set
 func validate(obj interface{}, req *http.Request) Errors {
-
 	var bindErrors Errors
 	v := reflect.ValueOf(obj)
 	k := v.Kind()
@@ -450,6 +443,5 @@ var (
 )
 
 const (
-	jsonContentType           = "application/json; charset=utf-8"
-	StatusUnprocessableEntity = 422
+	jsonContentType = "application/json; charset=utf-8"
 )

@@ -1,95 +1,100 @@
 package binder
 
-/*
 import (
 	"bytes"
 	"mime/multipart"
 	"net/http"
-	"net/http/httptest"
-	"testing"
 
-	"github.com/Unknwon/macaron"
-	. "github.com/smartystreets/goconvey/convey"
+	. "gopkg.in/check.v1"
 )
 
-var fileTestCases = []fileTestCase{
-	{
-		description: "Single file",
-		singleFile: &fileInfo{
-			fileName: "message.txt",
-			data:     "All your binding are belong to us",
-		},
-	},
-	{
-		description: "Multiple files",
-		multipleFiles: []*fileInfo{
-			&fileInfo{
-				fileName: "cool-gopher-fact.txt",
-				data:     "Did you know? https://plus.google.com/+MatthewHolt/posts/GmVfd6TPJ51",
-			},
-			&fileInfo{
-				fileName: "gophercon2014.txt",
-				data:     "@bradfitz has a Go time machine: https://twitter.com/mholt6/status/459463953395875840",
-			},
-		},
-	},
-	{
-		description: "Single file and multiple files",
-		singleFile: &fileInfo{
-			fileName: "social media.txt",
-			data:     "Hey, you should follow @mholt6 (Twitter) or +MatthewHolt (Google+)",
-		},
-		multipleFiles: []*fileInfo{
-			&fileInfo{
-				fileName: "thank you!",
-				data:     "Also, thanks to all the contributors of this package!",
-			},
-			&fileInfo{
-				fileName: "btw...",
-				data:     "This tool translates JSON into Go structs: http://mholt.github.io/json-to-go/",
-			},
-		},
-	},
+type fileSuite struct{}
+
+type fileInfo struct {
+	fieldName string
+	fileName  string
+	data      string
 }
 
-func Test_FileUploads(t *testing.T) {
-	Convey("Test file upload", t, func() {
-		for _, testCase := range fileTestCases {
-			performFileTest(t, MultipartForm, testCase)
-		}
+var _ = Suite(&fileSuite{})
+
+func (s *fileSuite) Test_SingleFile(c *C) {
+
+	blogPost := BlogPost{}
+	req := buildRequestWithFile([]fileInfo{
+		fileInfo{
+			fieldName: "headerImage",
+			fileName:  "message.txt",
+			data:      "All your binding are belong to us",
+		},
 	})
+	MultipartForm(&blogPost, req)
+
+	c.Assert(blogPost.HeaderImage, NotNil)
+	c.Assert(blogPost.HeaderImage.Filename, Equals, "message.txt")
+	c.Assert(unpackFileData(blogPost.HeaderImage), Equals, "All your binding are belong to us")
+
+	c.Assert(blogPost.Pictures, HasLen, 0)
 }
 
-func performFileTest(t *testing.T, binder handlerFunc, testCase fileTestCase) {
-	httpRecorder := httptest.NewRecorder()
-	m := macaron.Classic()
-
-	fileTestHandler := func(actual BlogPost, errs Errors) {
-		assertFileAsExpected(t, testCase, actual.HeaderImage, testCase.singleFile)
-		So(len(testCase.multipleFiles), ShouldEqual, len(actual.Pictures))
-
-		for i, expectedFile := range testCase.multipleFiles {
-			if i >= len(actual.Pictures) {
-				break
-			}
-			assertFileAsExpected(t, testCase, actual.Pictures[i], expectedFile)
-		}
-	}
-
-	m.Post(testRoute, binder(BlogPost{}), func(actual BlogPost, errs Errors) {
-		fileTestHandler(actual, errs)
+func (s *fileSuite) Test_MultipleFiles(c *C) {
+	blogPost := BlogPost{}
+	req := buildRequestWithFile([]fileInfo{
+		fileInfo{
+			fieldName: "picture",
+			fileName:  "cool-gopher-fact.txt",
+			data:      "Did you know? https://plus.google.com/+MatthewHolt/posts/GmVfd6TPJ51",
+		},
+		fileInfo{
+			fieldName: "picture",
+			fileName:  "gophercon2014.txt",
+			data:      "@bradfitz has a Go time machine: https://twitter.com/mholt6/status/459463953395875840",
+		},
 	})
+	MultipartForm(&blogPost, req)
 
-	m.ServeHTTP(httpRecorder, buildRequestWithFile(testCase))
+	c.Assert(blogPost.HeaderImage, IsNil)
 
-	switch httpRecorder.Code {
-	case http.StatusNotFound:
-		panic("Routing is messed up in test fixture (got 404): check methods and paths")
-	case http.StatusInternalServerError:
-		panic("Something bad happened on '" + testCase.description + "'")
-	}
+	c.Assert(blogPost.Pictures, HasLen, 2)
+	c.Assert(blogPost.Pictures[0].Filename, Equals, "cool-gopher-fact.txt")
+	c.Assert(unpackFileData(blogPost.Pictures[0]), Equals, "Did you know? https://plus.google.com/+MatthewHolt/posts/GmVfd6TPJ51")
+	c.Assert(blogPost.Pictures[1].Filename, Equals, "gophercon2014.txt")
+	c.Assert(unpackFileData(blogPost.Pictures[1]), Equals, "@bradfitz has a Go time machine: https://twitter.com/mholt6/status/459463953395875840")
 }
 
+func (s *fileSuite) Test_SingleFileAndMultipleFiles(c *C) {
+	blogPost := BlogPost{}
+	req := buildRequestWithFile([]fileInfo{
+		fileInfo{
+			fieldName: "headerImage",
+			fileName:  "social media.txt",
+			data:      "Hey, you should follow @mholt6 (Twitter) or +MatthewHolt (Google+)",
+		},
+		fileInfo{
+			fieldName: "picture",
+			fileName:  "thank you!",
+			data:      "Also, thanks to all the contributors of this package!",
+		},
+		fileInfo{
+			fieldName: "picture",
+			fileName:  "btw...",
+			data:      "This tool translates JSON into Go structs: http://mholt.github.io/json-to-go/",
+		},
+	})
+	MultipartForm(&blogPost, req)
+
+	c.Assert(blogPost.HeaderImage, NotNil)
+	c.Assert(blogPost.HeaderImage.Filename, Equals, "social media.txt")
+	c.Assert(unpackFileData(blogPost.HeaderImage), Equals, "Hey, you should follow @mholt6 (Twitter) or +MatthewHolt (Google+)")
+
+	c.Assert(blogPost.Pictures, HasLen, 2)
+	c.Assert(blogPost.Pictures[0].Filename, Equals, "thank you!")
+	c.Assert(unpackFileData(blogPost.Pictures[0]), Equals, "Also, thanks to all the contributors of this package!")
+	c.Assert(blogPost.Pictures[1].Filename, Equals, "btw...")
+	c.Assert(unpackFileData(blogPost.Pictures[1]), Equals, "This tool translates JSON into Go structs: http://mholt.github.io/json-to-go/")
+}
+
+/*
 func assertFileAsExpected(t *testing.T, testCase fileTestCase, actual *multipart.FileHeader, expected *fileInfo) {
 	if expected == nil && actual == nil {
 		return
@@ -106,25 +111,17 @@ func assertFileAsExpected(t *testing.T, testCase fileTestCase, actual *multipart
 	So(actual.Filename, ShouldEqual, expected.fileName)
 	So(unpackFileHeaderData(actual), ShouldEqual, expected.data)
 }
+*/
 
-func buildRequestWithFile(testCase fileTestCase) *http.Request {
+func buildRequestWithFile(files []fileInfo) *http.Request {
 	b := &bytes.Buffer{}
 	w := multipart.NewWriter(b)
-
-	if testCase.singleFile != nil {
-		formFileSingle, err := w.CreateFormFile("headerImage", testCase.singleFile.fileName)
-		if err != nil {
-			panic("Could not create FormFile (single file): " + err.Error())
-		}
-		formFileSingle.Write([]byte(testCase.singleFile.data))
-	}
-
-	for _, file := range testCase.multipleFiles {
-		formFileMultiple, err := w.CreateFormFile("picture", file.fileName)
+	for _, file := range files {
+		formFile, err := w.CreateFormFile(file.fieldName, file.fileName)
 		if err != nil {
 			panic("Could not create FormFile (multiple files): " + err.Error())
 		}
-		formFileMultiple.Write([]byte(file.data))
+		formFile.Write([]byte(file.data))
 	}
 
 	err := w.Close()
@@ -132,17 +129,15 @@ func buildRequestWithFile(testCase fileTestCase) *http.Request {
 		panic("Could not close multipart writer: " + err.Error())
 	}
 
-	req, err := http.NewRequest("POST", testRoute, b)
+	req, err := http.NewRequest("POST", "", b)
 	if err != nil {
 		panic("Could not create file upload request: " + err.Error())
 	}
-
 	req.Header.Set("Content-Type", w.FormDataContentType())
-
 	return req
 }
 
-func unpackFileHeaderData(fh *multipart.FileHeader) string {
+func unpackFileData(fh *multipart.FileHeader) string {
 	if fh == nil {
 		return ""
 	}
@@ -161,18 +156,3 @@ func unpackFileHeaderData(fh *multipart.FileHeader) string {
 
 	return fb.String()
 }
-
-type (
-	fileTestCase struct {
-		description   string
-		input         BlogPost
-		singleFile    *fileInfo
-		multipleFiles []*fileInfo
-	}
-
-	fileInfo struct {
-		fileName string
-		data     string
-	}
-)
-*/

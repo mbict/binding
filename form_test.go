@@ -1,11 +1,6 @@
 package binder
 
-import (
-	"net/http"
-	"strings"
-
-	. "gopkg.in/check.v1"
-)
+import . "gopkg.in/check.v1"
 
 type formSuite struct{}
 
@@ -179,13 +174,4 @@ func (s *formSuite) Test_EmbedStructPointerRemainNilIfNotBinded(c *C) {
 
 	c.Assert(errs, IsNil)
 	c.Assert(embedPerson, DeepEquals, EmbedPerson{nil})
-}
-
-func newRequest(method, query, body, contentType string) *http.Request {
-	req, err := http.NewRequest(method, query, strings.NewReader(body))
-	if err != nil {
-		panic(err)
-	}
-	req.Header.Add("Content-Type", contentType)
-	return req
 }
