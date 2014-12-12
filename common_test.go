@@ -1,25 +1,14 @@
-// Copyright 2014 martini-contrib/binding Authors
-// Copyright 2014 Unknwon
-//
-// Licensed under the Apache License, Version 2.0 (the "License"): you may
-// not use this file except in compliance with the License. You may obtain
-// a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-// License for the specific language governing permissions and limitations
-// under the License.
-
-package binding
+package binder
 
 import (
 	"mime/multipart"
+	"net/http"
+	"testing"
 
-	"github.com/Unknwon/macaron"
+	. "gopkg.in/check.v1"
 )
+
+func Test(t *testing.T) { TestingT(t) }
 
 // These types are mostly contrived examples, but they're used
 // across many test cases. The idea is to cover all the scenarios
@@ -42,7 +31,7 @@ type (
 	// and multiple file uploads
 	BlogPost struct {
 		Post
-		Id          int                     `form:"id" binding:"Required"` // JSON not specified here for test coverage
+		Id          int                     `form:"id" binding:"Required"`
 		Ignored     string                  `form:"-" json:"-"`
 		Ratings     []int                   `form:"rating" json:"ratings"`
 		Author      Person                  `json:"author"`
@@ -67,36 +56,19 @@ type (
 		Url          string   `form:"Url" binding:"Url"`
 		UrlEmpty     string   `form:"UrlEmpty" binding:"Url"`
 	}
-
-	// The common function signature of the handlers going under test.
-	handlerFunc func(interface{}, ...interface{}) macaron.Handler
-
-	// Used for testing mapping an interface to the context
-	// If used (withInterface = true in the testCases), a modeler
-	// should be mapped to the context as well as BlogPost, meaning
-	// you can receive a modeler in your application instead of a
-	// concrete BlogPost.
-	modeler interface {
-		Model() string
-	}
 )
 
-func (p Post) Validate(ctx *macaron.Context, errs Errors) Errors {
+func (p Post) ValidateBinder(req *http.Request, errors Errors) Errors {
 	if len(p.Title) < 10 {
-		errs = append(errs, Error{
-			FieldNames:     []string{"title"},
+		errors = append(errors, Error{
+			FieldNames:     []string{"Title"},
 			Classification: "LengthError",
 			Message:        "Life is too short",
 		})
 	}
-	return errs
-}
-
-func (p Post) Model() string {
-	return p.Title
+	return errors
 }
 
 const (
-	testRoute       = "/test"
 	formContentType = "application/x-www-form-urlencoded"
 )

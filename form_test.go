@@ -1,239 +1,191 @@
-// Copyright 2014 martini-contrib/binding Authors
-// Copyright 2014 Unknwon
-//
-// Licensed under the Apache License, Version 2.0 (the "License"): you may
-// not use this file except in compliance with the License. You may obtain
-// a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-// License for the specific language governing permissions and limitations
-// under the License.
-
-package binding
+package binder
 
 import (
-	"fmt"
 	"net/http"
-	"net/http/httptest"
-	"reflect"
 	"strings"
-	"testing"
 
-	"github.com/Unknwon/macaron"
-	. "github.com/smartystreets/goconvey/convey"
+	. "gopkg.in/check.v1"
 )
 
-var formTestCases = []formTestCase{
-	{
-		description:   "Happy path",
-		shouldSucceed: true,
-		payload:       `title=Glorious+Post+Title&content=Lorem+ipsum+dolor+sit+amet`,
-		contentType:   formContentType,
-		expected:      Post{Title: "Glorious Post Title", Content: "Lorem ipsum dolor sit amet"},
-	},
-	{
-		description:   "Happy path with interface",
-		shouldSucceed: true,
-		withInterface: true,
-		payload:       `title=Glorious+Post+Title&content=Lorem+ipsum+dolor+sit+amet`,
-		contentType:   formContentType,
-		expected:      Post{Title: "Glorious Post Title", Content: "Lorem ipsum dolor sit amet"},
-	},
-	{
-		description:   "Empty payload",
-		shouldSucceed: false,
-		payload:       ``,
-		contentType:   formContentType,
-		expected:      Post{},
-	},
-	{
-		description:   "Empty content type",
-		shouldSucceed: false,
-		payload:       `title=Glorious+Post+Title&content=Lorem+ipsum+dolor+sit+amet`,
-		contentType:   ``,
-		expected:      Post{},
-	},
-	{
-		description:   "Malformed form body",
-		shouldSucceed: false,
-		payload:       `title=%2`,
-		contentType:   formContentType,
-		expected:      Post{},
-	},
-	{
-		description:   "With nested and embedded structs",
-		shouldSucceed: true,
-		payload:       `title=Glorious+Post+Title&id=1&name=Matt+Holt`,
-		contentType:   formContentType,
-		expected:      BlogPost{Post: Post{Title: "Glorious Post Title"}, Id: 1, Author: Person{Name: "Matt Holt"}},
-	},
-	{
-		description:   "Required embedded struct field not specified",
-		shouldSucceed: false,
-		payload:       `id=1&name=Matt+Holt`,
-		contentType:   formContentType,
-		expected:      BlogPost{Id: 1, Author: Person{Name: "Matt Holt"}},
-	},
-	{
-		description:   "Required nested struct field not specified",
-		shouldSucceed: false,
-		payload:       `title=Glorious+Post+Title&id=1`,
-		contentType:   formContentType,
-		expected:      BlogPost{Post: Post{Title: "Glorious Post Title"}, Id: 1},
-	},
-	{
-		description:   "Multiple values into slice",
-		shouldSucceed: true,
-		payload:       `title=Glorious+Post+Title&id=1&name=Matt+Holt&rating=4&rating=3&rating=5`,
-		contentType:   formContentType,
-		expected:      BlogPost{Post: Post{Title: "Glorious Post Title"}, Id: 1, Author: Person{Name: "Matt Holt"}, Ratings: []int{4, 3, 5}},
-	},
-	{
-		description:   "Unexported field",
-		shouldSucceed: true,
-		payload:       `title=Glorious+Post+Title&id=1&name=Matt+Holt&unexported=foo`,
-		contentType:   formContentType,
-		expected:      BlogPost{Post: Post{Title: "Glorious Post Title"}, Id: 1, Author: Person{Name: "Matt Holt"}},
-	},
-	{
-		description:   "Query string POST",
-		shouldSucceed: true,
-		payload:       `title=Glorious+Post+Title&content=Lorem+ipsum+dolor+sit+amet`,
-		contentType:   formContentType,
-		expected:      Post{Title: "Glorious Post Title", Content: "Lorem ipsum dolor sit amet"},
-	},
-	{
-		description:   "Query string with Content-Type (POST request)",
-		shouldSucceed: true,
-		queryString:   "?title=Glorious+Post+Title&content=Lorem+ipsum+dolor+sit+amet",
-		payload:       ``,
-		contentType:   formContentType,
-		expected:      Post{Title: "Glorious Post Title", Content: "Lorem ipsum dolor sit amet"},
-	},
-	{
-		description:   "Query string without Content-Type (GET request)",
-		shouldSucceed: true,
-		method:        "GET",
-		queryString:   "?title=Glorious+Post+Title&content=Lorem+ipsum+dolor+sit+amet",
-		payload:       ``,
-		expected:      Post{Title: "Glorious Post Title", Content: "Lorem ipsum dolor sit amet"},
-	},
-	{
-		description:   "Embed struct pointer",
-		shouldSucceed: true,
-		deepEqual:     true,
-		method:        "GET",
-		queryString:   "?name=Glorious+Post+Title&email=Lorem+ipsum+dolor+sit+amet",
-		payload:       ``,
-		expected:      EmbedPerson{&Person{Name: "Glorious Post Title", Email: "Lorem ipsum dolor sit amet"}},
-	},
-	{
-		description:   "Embed struct pointer remain nil if not binded",
-		shouldSucceed: true,
-		deepEqual:     true,
-		method:        "GET",
-		queryString:   "?",
-		payload:       ``,
-		expected:      EmbedPerson{nil},
-	},
+type formSuite struct{}
+
+var _ = Suite(&formSuite{})
+
+func (s *formSuite) Test_NotByReference(c *C) {
+	post := Post{}
+	req := newRequest(`POST`, ``, ``, formContentType)
+	errs := Form(post, req)
+
+	c.Assert(errs, NotNil)
+	c.Assert(errs, HasLen, 1)
+	c.Assert(errs[0], DeepEquals, ErrorInputNotByReference)
 }
 
-func Test_Form(t *testing.T) {
-	Convey("Test form", t, func() {
-		for _, testCase := range formTestCases {
-			performFormTest(t, Form, testCase)
-		}
-	})
+func (s *formSuite) Test_NotAStruct(c *C) {
+	test := int(1)
+	req := newRequest(`POST`, ``, ``, formContentType)
+	errs := Form(&test, req)
+
+	c.Assert(errs, NotNil)
+	c.Assert(errs, HasLen, 1)
+	c.Assert(errs[0], DeepEquals, ErrorInputIsNotStructure)
 }
 
-func performFormTest(t *testing.T, binder handlerFunc, testCase formTestCase) {
-	resp := httptest.NewRecorder()
-	m := macaron.Classic()
+func (s *formSuite) Test_HappyPath(c *C) {
+	post := Post{}
+	req := newRequest(`POST`, ``, `title=Glorious+Post+Title&content=Lorem+ipsum+dolor+sit+amet`, formContentType)
+	errs := Form(&post, req)
 
-	formTestHandler := func(actual interface{}, errs Errors) {
-		if testCase.shouldSucceed && len(errs) > 0 {
-			So(len(errs), ShouldEqual, 0)
-		} else if !testCase.shouldSucceed && len(errs) == 0 {
-			So(len(errs), ShouldNotEqual, 0)
-		}
-		expString := fmt.Sprintf("%+v", testCase.expected)
-		actString := fmt.Sprintf("%+v", actual)
-		if actString != expString && !(testCase.deepEqual && reflect.DeepEqual(testCase.expected, actual)) {
-			So(actString, ShouldEqual, expString)
-		}
-	}
+	c.Assert(errs, IsNil)
+	c.Assert(post, DeepEquals, Post{Title: "Glorious Post Title", Content: "Lorem ipsum dolor sit amet"})
+}
 
-	switch testCase.expected.(type) {
-	case Post:
-		if testCase.withInterface {
-			m.Post(testRoute, binder(Post{}, (*modeler)(nil)), func(actual Post, iface modeler, errs Errors) {
-				So(actual.Title, ShouldEqual, iface.Model())
-				formTestHandler(actual, errs)
-			})
-		} else {
-			m.Post(testRoute, binder(Post{}), func(actual Post, errs Errors) {
-				formTestHandler(actual, errs)
-			})
-			m.Get(testRoute, binder(Post{}), func(actual Post, errs Errors) {
-				formTestHandler(actual, errs)
-			})
-		}
+func (s *formSuite) Test_HappyPathWithPointer(c *C) {
+	post := &Post{}
+	req := newRequest(`POST`, ``, `title=Glorious+Post+Title&content=Lorem+ipsum+dolor+sit+amet`, formContentType)
+	errs := Form(&post, req)
 
-	case BlogPost:
-		if testCase.withInterface {
-			m.Post(testRoute, binder(BlogPost{}, (*modeler)(nil)), func(actual BlogPost, iface modeler, errs Errors) {
-				So(actual.Title, ShouldEqual, iface.Model())
-				formTestHandler(actual, errs)
-			})
-		} else {
-			m.Post(testRoute, binder(BlogPost{}), func(actual BlogPost, errs Errors) {
-				formTestHandler(actual, errs)
-			})
-		}
+	c.Assert(errs, IsNil)
+	c.Assert(post, DeepEquals, &Post{Title: "Glorious Post Title", Content: "Lorem ipsum dolor sit amet"})
+}
 
-	case EmbedPerson:
-		m.Post(testRoute, binder(EmbedPerson{}), func(actual EmbedPerson, errs Errors) {
-			formTestHandler(actual, errs)
-		})
-		m.Get(testRoute, binder(EmbedPerson{}), func(actual EmbedPerson, errs Errors) {
-			formTestHandler(actual, errs)
-		})
-	}
+func (s *formSuite) Test_HappyPathWithNullPointer(c *C) {
+	post := (*Post)(nil)
+	req := newRequest(`POST`, ``, `title=Glorious+Post+Title&content=Lorem+ipsum+dolor+sit+amet`, formContentType)
+	errs := Form(&post, req)
 
-	if testCase.method == "" {
-		testCase.method = "POST"
-	}
+	c.Assert(errs, IsNil)
+	c.Assert(post, DeepEquals, &Post{Title: "Glorious Post Title", Content: "Lorem ipsum dolor sit amet"})
+}
 
-	req, err := http.NewRequest(testCase.method, testRoute+testCase.queryString, strings.NewReader(testCase.payload))
+func (s *formSuite) Test_EmptyBody(c *C) {
+	post := Post{}
+	req := newRequest(`POST`, ``, ``, formContentType)
+	errs := Form(&post, req)
+
+	c.Assert(errs, NotNil)
+	c.Assert(errs, HasLen, 2)
+	c.Assert(errs[0], DeepEquals, Error{FieldNames: []string{"Title"}, Classification: "RequiredError", Message: "Required"})
+	c.Assert(errs[1], DeepEquals, Error{FieldNames: []string{"Title"}, Classification: "LengthError", Message: "Life is too short"})
+	c.Assert(post, DeepEquals, Post{})
+}
+
+func (s *formSuite) Test_EmptyContentType(c *C) {
+	post := Post{}
+	req := newRequest(`POST`, ``, `title=Glorious+Post+Title&content=Lorem+ipsum+dolor+sit+amet`, ``)
+	errs := Form(&post, req)
+
+	c.Assert(errs, NotNil)
+	c.Assert(errs, HasLen, 2)
+	c.Assert(errs[0], DeepEquals, Error{FieldNames: []string{"Title"}, Classification: "RequiredError", Message: "Required"})
+	c.Assert(errs[1], DeepEquals, Error{FieldNames: []string{"Title"}, Classification: "LengthError", Message: "Life is too short"})
+	c.Assert(post, DeepEquals, Post{})
+}
+
+func (s *formSuite) Test_MalformedBody(c *C) {
+	post := Post{}
+	req := newRequest(`POST`, ``, `title=%2`, formContentType)
+	errs := Form(&post, req)
+
+	c.Assert(errs, NotNil)
+	c.Assert(errs, HasLen, 3)
+	c.Assert(errs[0], DeepEquals, Error{FieldNames: []string{}, Classification: DeserializationError, Message: `invalid URL escape "%2"`})
+	c.Assert(errs[1], DeepEquals, Error{FieldNames: []string{"Title"}, Classification: "RequiredError", Message: "Required"})
+	c.Assert(errs[2], DeepEquals, Error{FieldNames: []string{"Title"}, Classification: "LengthError", Message: "Life is too short"})
+	c.Assert(post, DeepEquals, Post{})
+}
+
+func (s *formSuite) Test_NestedEmbeddedStructs(c *C) {
+	blogPost := BlogPost{}
+	req := newRequest(`POST`, ``, `title=Glorious+Post+Title&id=1&name=Matt+Holt`, formContentType)
+	errs := Form(&blogPost, req)
+
+	c.Assert(errs, IsNil)
+	c.Assert(blogPost, DeepEquals, BlogPost{Post: Post{Title: "Glorious Post Title"}, Id: 1, Author: Person{Name: "Matt Holt"}})
+}
+
+func (s *formSuite) Test_RequiredEmbeddedStructFieldNotSpecified(c *C) {
+	blogPost := BlogPost{}
+	req := newRequest(`POST`, ``, `id=1&name=Matt+Holt`, formContentType)
+	errs := Form(&blogPost, req)
+
+	c.Assert(errs, NotNil)
+	c.Assert(errs, HasLen, 2)
+	c.Assert(errs[0], DeepEquals, Error{FieldNames: []string{"Title"}, Classification: "RequiredError", Message: "Required"})
+	c.Assert(errs[1], DeepEquals, Error{FieldNames: []string{"Title"}, Classification: "LengthError", Message: "Life is too short"})
+	c.Assert(blogPost, DeepEquals, BlogPost{Id: 1, Author: Person{Name: "Matt Holt"}})
+}
+
+func (s *formSuite) Test_RequiredNestedStructFieldNotSpecified(c *C) {
+	blogPost := BlogPost{}
+	req := newRequest(`POST`, ``, `title=Glorious+Post+Title&id=1`, formContentType)
+	errs := Form(&blogPost, req)
+
+	c.Assert(errs, NotNil)
+	c.Assert(errs, HasLen, 1)
+
+	c.Assert(blogPost, DeepEquals, BlogPost{Post: Post{Title: "Glorious Post Title"}, Id: 1})
+}
+
+func (s *formSuite) Test_MultipleValuesIntoSlice(c *C) {
+	blogPost := BlogPost{}
+	req := newRequest(`POST`, ``, `title=Glorious+Post+Title&id=1&name=Matt+Holt&rating=4&rating=3&rating=5`, formContentType)
+	errs := Form(&blogPost, req)
+
+	c.Assert(errs, IsNil)
+	c.Assert(blogPost, DeepEquals, BlogPost{Post: Post{Title: "Glorious Post Title"}, Id: 1, Author: Person{Name: "Matt Holt"}, Ratings: []int{4, 3, 5}})
+}
+
+func (s *formSuite) Test_UnexportedField(c *C) {
+	blogPost := BlogPost{}
+	req := newRequest(`POST`, ``, `title=Glorious+Post+Title&id=1&name=Matt+Holt&unexported=foo`, formContentType)
+	errs := Form(&blogPost, req)
+
+	c.Assert(errs, IsNil)
+	c.Assert(blogPost, DeepEquals, BlogPost{Post: Post{Title: "Glorious Post Title"}, Id: 1, Author: Person{Name: "Matt Holt"}})
+}
+
+func (s *formSuite) Test_QueryString(c *C) {
+	post := Post{}
+	req := newRequest(`POST`, `?title=Glorious+Post+Title&content=Lorem+ipsum+dolor+sit+amet`, ``, formContentType)
+	errs := Form(&post, req)
+
+	c.Assert(errs, IsNil)
+	c.Assert(post, DeepEquals, Post{Title: "Glorious Post Title", Content: "Lorem ipsum dolor sit amet"})
+}
+
+func (s *formSuite) Test_QueryStringWithoutContentTypeGET(c *C) {
+	post := Post{}
+	req := newRequest(`GET`, `?title=Glorious+Post+Title&content=Lorem+ipsum+dolor+sit+amet`, ``, formContentType)
+	errs := Form(&post, req)
+
+	c.Assert(errs, IsNil)
+	c.Assert(post, DeepEquals, Post{Title: "Glorious Post Title", Content: "Lorem ipsum dolor sit amet"})
+}
+
+func (s *formSuite) Test_EmbedStructPointer(c *C) {
+	embedPerson := EmbedPerson{}
+	req := newRequest(`GET`, `?name=Glorious+Post+Title&email=Lorem+ipsum+dolor+sit+amet`, ``, formContentType)
+	errs := Form(&embedPerson, req)
+
+	c.Assert(errs, IsNil)
+	c.Assert(embedPerson, DeepEquals, EmbedPerson{&Person{Name: "Glorious Post Title", Email: "Lorem ipsum dolor sit amet"}})
+}
+
+func (s *formSuite) Test_EmbedStructPointerRemainNilIfNotBinded(c *C) {
+	embedPerson := EmbedPerson{}
+	req := newRequest(`GET`, `?`, ``, formContentType)
+	errs := Form(&embedPerson, req)
+
+	c.Assert(errs, IsNil)
+	c.Assert(embedPerson, DeepEquals, EmbedPerson{nil})
+}
+
+func newRequest(method, query, body, contentType string) *http.Request {
+	req, err := http.NewRequest(method, query, strings.NewReader(body))
 	if err != nil {
 		panic(err)
 	}
-	req.Header.Set("Content-Type", testCase.contentType)
-
-	m.ServeHTTP(resp, req)
-
-	switch resp.Code {
-	case http.StatusNotFound:
-		panic("Routing is messed up in test fixture (got 404): check methods and paths")
-	case http.StatusInternalServerError:
-		panic("Something bad happened on '" + testCase.description + "'")
-	}
+	req.Header.Add("Content-Type", contentType)
+	return req
 }
-
-type (
-	formTestCase struct {
-		description   string
-		shouldSucceed bool
-		deepEqual     bool
-		withInterface bool
-		queryString   string
-		payload       string
-		contentType   string
-		expected      interface{}
-		method        string
-	}
-)

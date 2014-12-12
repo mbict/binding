@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-package binding
+package binder
 
 type (
 	// Errors may be generated during deserialization, binding,
@@ -44,6 +44,14 @@ type (
 	}
 )
 
+func NewError(fieldNames []string, classification, message string) Error {
+	return Error{
+		FieldNames:     fieldNames,
+		Classification: classification,
+		Message:        message,
+	}
+}
+
 // Add adds an error associated with the fields indicated
 // by fieldNames, with the given classification and message.
 func (e *Errors) Add(fieldNames []string, classification, message string) {
@@ -52,6 +60,10 @@ func (e *Errors) Add(fieldNames []string, classification, message string) {
 		Classification: classification,
 		Message:        message,
 	})
+}
+
+func (e *Errors) AddError(err Error) {
+	*e = append(*e, err)
 }
 
 // Len returns the number of errors.
