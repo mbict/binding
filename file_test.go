@@ -94,25 +94,6 @@ func (s *fileSuite) Test_SingleFileAndMultipleFiles(c *C) {
 	c.Assert(unpackFileData(blogPost.Pictures[1]), Equals, "This tool translates JSON into Go structs: http://mholt.github.io/json-to-go/")
 }
 
-/*
-func assertFileAsExpected(t *testing.T, testCase fileTestCase, actual *multipart.FileHeader, expected *fileInfo) {
-	if expected == nil && actual == nil {
-		return
-	}
-
-	if expected != nil && actual == nil {
-		So(actual, ShouldNotBeNil)
-		return
-	} else if expected == nil && actual != nil {
-		So(actual, ShouldBeNil)
-		return
-	}
-
-	So(actual.Filename, ShouldEqual, expected.fileName)
-	So(unpackFileHeaderData(actual), ShouldEqual, expected.data)
-}
-*/
-
 func buildRequestWithFile(files []fileInfo) *http.Request {
 	b := &bytes.Buffer{}
 	w := multipart.NewWriter(b)

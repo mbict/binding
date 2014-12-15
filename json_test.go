@@ -1,209 +1,117 @@
 package binder
 
-/*
-import (
-	"fmt"
-	"io"
-	"net/http"
-	"net/http/httptest"
-	"strings"
-	"testing"
+import . "gopkg.in/check.v1"
 
-	"github.com/Unknwon/macaron"
-	. "github.com/smartystreets/goconvey/convey"
-)
+type jsonSuite struct{}
 
-var jsonTestCases = []jsonTestCase{
-	{
-		description:         "Happy path",
-		shouldSucceedOnJson: true,
-		payload:             `{"title": "Glorious Post Title", "content": "Lorem ipsum dolor sit amet"}`,
-		contentType:         jsonContentType,
-		expected:            Post{Title: "Glorious Post Title", Content: "Lorem ipsum dolor sit amet"},
-	},
-	{
-		description:         "Happy path with interface",
-		shouldSucceedOnJson: true,
-		withInterface:       true,
-		payload:             `{"title": "Glorious Post Title", "content": "Lorem ipsum dolor sit amet"}`,
-		contentType:         jsonContentType,
-		expected:            Post{Title: "Glorious Post Title", Content: "Lorem ipsum dolor sit amet"},
-	},
-	{
-		description:         "Nil payload",
-		shouldSucceedOnJson: false,
-		payload:             `-nil-`,
-		contentType:         jsonContentType,
-		expected:            Post{},
-	},
-	{
-		description:         "Empty payload",
-		shouldSucceedOnJson: false,
-		payload:             ``,
-		contentType:         jsonContentType,
-		expected:            Post{},
-	},
-	{
-		description:         "Empty content type",
-		shouldSucceedOnJson: true,
-		shouldFailOnBind:    true,
-		payload:             `{"title": "Glorious Post Title", "content": "Lorem ipsum dolor sit amet"}`,
-		contentType:         ``,
-		expected:            Post{Title: "Glorious Post Title", Content: "Lorem ipsum dolor sit amet"},
-	},
-	{
-		description:         "Unsupported content type",
-		shouldSucceedOnJson: true,
-		shouldFailOnBind:    true,
-		payload:             `{"title": "Glorious Post Title", "content": "Lorem ipsum dolor sit amet"}`,
-		contentType:         `BoGuS`,
-		expected:            Post{Title: "Glorious Post Title", Content: "Lorem ipsum dolor sit amet"},
-	},
-	{
-		description:         "Malformed JSON",
-		shouldSucceedOnJson: false,
-		payload:             `{"title":"foo"`,
-		contentType:         jsonContentType,
-		expected:            Post{},
-	},
-	{
-		description:         "Deserialization with nested and embedded struct",
-		shouldSucceedOnJson: true,
-		payload:             `{"title":"Glorious Post Title", "id":1, "author":{"name":"Matt Holt"}}`,
-		contentType:         jsonContentType,
-		expected:            BlogPost{Post: Post{Title: "Glorious Post Title"}, Id: 1, Author: Person{Name: "Matt Holt"}},
-	},
-	{
-		description:         "Deserialization with nested and embedded struct with interface",
-		shouldSucceedOnJson: true,
-		withInterface:       true,
-		payload:             `{"title":"Glorious Post Title", "id":1, "author":{"name":"Matt Holt"}}`,
-		contentType:         jsonContentType,
-		expected:            BlogPost{Post: Post{Title: "Glorious Post Title"}, Id: 1, Author: Person{Name: "Matt Holt"}},
-	},
-	{
-		description:         "Required nested struct field not specified",
-		shouldSucceedOnJson: false,
-		payload:             `{"title":"Glorious Post Title", "id":1, "author":{}}`,
-		contentType:         jsonContentType,
-		expected:            BlogPost{Post: Post{Title: "Glorious Post Title"}, Id: 1},
-	},
-	{
-		description:         "Required embedded struct field not specified",
-		shouldSucceedOnJson: false,
-		payload:             `{"id":1, "author":{"name":"Matt Holt"}}`,
-		contentType:         jsonContentType,
-		expected:            BlogPost{Id: 1, Author: Person{Name: "Matt Holt"}},
-	},
-	{
-		description:         "Slice of Posts",
-		shouldSucceedOnJson: true,
-		payload:             `[{"title": "First Post"}, {"title": "Second Post"}]`,
-		contentType:         jsonContentType,
-		expected:            []Post{Post{Title: "First Post"}, Post{Title: "Second Post"}},
-	},
+var _ = Suite(&jsonSuite{})
+
+func (s *jsonSuite) Test_HappyPath(c *C) {
+	post := Post{}
+	req := newRequest(`POST`, ``, `{"title": "Glorious Post Title", "content": "Lorem ipsum dolor sit amet"}`, jsonContentType)
+	errs := Json(&post, req)
+
+	c.Assert(errs, IsNil)
+	c.Assert(post, DeepEquals, Post{Title: "Glorious Post Title", Content: "Lorem ipsum dolor sit amet"})
 }
 
-func Test_Json(t *testing.T) {
-	Convey("Test JSON", t, func() {
-		for _, testCase := range jsonTestCases {
-			performJsonTest(t, Json, testCase)
-		}
-	})
+func (s *jsonSuite) Test_NilPayload(c *C) {
+	post := Post{}
+	req := newRequest(`POST`, ``, `-nil-`, jsonContentType)
+	errs := Json(&post, req)
+
+	c.Assert(errs, NotNil)
+	c.Assert(errs, HasLen, 2)
+	c.Assert(errs, DeepEquals, Errors{
+		Error{FieldNames: []string{"Title"}, Classification: "RequiredError", Message: "Required"},
+		Error{FieldNames: []string{"Title"}, Classification: "LengthError", Message: "Life is too short"}})
+	c.Assert(post, DeepEquals, Post{})
 }
 
-func performJsonTest(t *testing.T, binder handlerFunc, testCase jsonTestCase) {
-	var payload io.Reader
-	httpRecorder := httptest.NewRecorder()
-	m := macaron.Classic()
+func (s *jsonSuite) Test_EmptyPayload(c *C) {
+	post := Post{}
+	req := newRequest(`POST`, ``, ``, jsonContentType)
+	errs := Json(&post, req)
 
-	jsonTestHandler := func(actual interface{}, errs Errors) {
-		if testCase.shouldSucceedOnJson && len(errs) > 0 {
-			So(len(errs), ShouldEqual, 0)
-		} else if !testCase.shouldSucceedOnJson && len(errs) == 0 {
-			So(len(errs), ShouldNotEqual, 0)
-		}
-		So(fmt.Sprintf("%+v", actual), ShouldEqual, fmt.Sprintf("%+v", testCase.expected))
-	}
-
-	switch testCase.expected.(type) {
-	case []Post:
-		if testCase.withInterface {
-			m.Post(testRoute, binder([]Post{}, (*modeler)(nil)), func(actual []Post, iface modeler, errs Errors) {
-
-				for _, a := range actual {
-					So(a.Title, ShouldEqual, iface.Model())
-					jsonTestHandler(a, errs)
-				}
-			})
-		} else {
-			m.Post(testRoute, binder([]Post{}), func(actual []Post, errs Errors) {
-				jsonTestHandler(actual, errs)
-			})
-		}
-
-	case Post:
-		if testCase.withInterface {
-			m.Post(testRoute, binder(Post{}, (*modeler)(nil)), func(actual Post, iface modeler, errs Errors) {
-				So(actual.Title, ShouldEqual, iface.Model())
-				jsonTestHandler(actual, errs)
-			})
-		} else {
-			m.Post(testRoute, binder(Post{}), func(actual Post, errs Errors) {
-				jsonTestHandler(actual, errs)
-			})
-		}
-
-	case BlogPost:
-		if testCase.withInterface {
-			m.Post(testRoute, binder(BlogPost{}, (*modeler)(nil)), func(actual BlogPost, iface modeler, errs Errors) {
-				So(actual.Title, ShouldEqual, iface.Model())
-				jsonTestHandler(actual, errs)
-			})
-		} else {
-			m.Post(testRoute, binder(BlogPost{}), func(actual BlogPost, errs Errors) {
-				jsonTestHandler(actual, errs)
-			})
-		}
-	}
-
-	if testCase.payload == "-nil-" {
-		payload = nil
-	} else {
-		payload = strings.NewReader(testCase.payload)
-	}
-
-	req, err := http.NewRequest("POST", testRoute, payload)
-	if err != nil {
-		panic(err)
-	}
-	req.Header.Set("Content-Type", testCase.contentType)
-
-	m.ServeHTTP(httpRecorder, req)
-
-	switch httpRecorder.Code {
-	case http.StatusNotFound:
-		panic("Routing is messed up in test fixture (got 404): check method and path")
-	case http.StatusInternalServerError:
-		panic("Something bad happened on '" + testCase.description + "'")
-	default:
-		if testCase.shouldSucceedOnJson &&
-			httpRecorder.Code != http.StatusOK &&
-			!testCase.shouldFailOnBind {
-			So(httpRecorder.Code, ShouldEqual, http.StatusOK)
-		}
-	}
+	c.Assert(errs, NotNil)
+	c.Assert(errs, HasLen, 2)
+	c.Assert(errs, DeepEquals, Errors{
+		Error{FieldNames: []string{"Title"}, Classification: "RequiredError", Message: "Required"},
+		Error{FieldNames: []string{"Title"}, Classification: "LengthError", Message: "Life is too short"}})
+	c.Assert(post, DeepEquals, Post{})
 }
 
-type (
-	jsonTestCase struct {
-		description         string
-		withInterface       bool
-		shouldSucceedOnJson bool
-		shouldFailOnBind    bool
-		payload             string
-		contentType         string
-		expected            interface{}
-	}
-)
-*/
+func (s *jsonSuite) Test_EmptyContentType(c *C) {
+	post := Post{}
+	req := newRequest(`POST`, ``, `{"title": "Glorious Post Title", "content": "Lorem ipsum dolor sit amet"}`, ``)
+	errs := Json(&post, req)
+
+	c.Assert(errs, IsNil)
+	c.Assert(post, DeepEquals, Post{Title: "Glorious Post Title", Content: "Lorem ipsum dolor sit amet"})
+}
+
+func (s *jsonSuite) Test_UnsupportedContentType(c *C) {
+	post := Post{}
+	req := newRequest(`POST`, ``, `{"title": "Glorious Post Title", "content": "Lorem ipsum dolor sit amet"}`, "BoGus")
+	errs := Json(&post, req)
+
+	c.Assert(errs, IsNil)
+	c.Assert(post, DeepEquals, Post{Title: "Glorious Post Title", Content: "Lorem ipsum dolor sit amet"})
+}
+
+func (s *jsonSuite) Test_MalformedJson(c *C) {
+	post := Post{}
+	req := newRequest(`POST`, ``, `{"title":"foo"`, jsonContentType)
+	errs := Json(&post, req)
+
+	c.Assert(errs, NotNil)
+	c.Assert(errs, HasLen, 3)
+	c.Assert(errs, DeepEquals, Errors{
+		Error{FieldNames: []string{}, Classification: "DeserializationError", Message: "unexpected EOF"},
+		Error{FieldNames: []string{"Title"}, Classification: "RequiredError", Message: "Required"},
+		Error{FieldNames: []string{"Title"}, Classification: "LengthError", Message: "Life is too short"}})
+
+	c.Assert(post, DeepEquals, Post{})
+}
+
+func (s *jsonSuite) Test_DeserializationWithNestedAndEmbeddedStruct(c *C) {
+	blogPost := BlogPost{}
+	req := newRequest(`POST`, ``, `{"title":"Glorious Post Title", "id":1, "author":{"name":"Matt Holt"}}`, jsonContentType)
+	errs := Json(&blogPost, req)
+
+	c.Assert(errs, IsNil)
+	c.Assert(blogPost, DeepEquals, BlogPost{Post: Post{Title: "Glorious Post Title"}, Id: 1, Author: Person{Name: "Matt Holt"}})
+}
+
+func (s *jsonSuite) Test_RequiredNestedStructFieldNotSpecified(c *C) {
+	blogPost := BlogPost{}
+	req := newRequest(`POST`, ``, `{"title":"Glorious Post Title", "id":1, "author":{}}`, jsonContentType)
+	errs := Json(&blogPost, req)
+
+	c.Assert(errs, NotNil)
+	c.Assert(errs, HasLen, 1)
+	c.Assert(errs, DeepEquals, Errors{Error{FieldNames: []string{"Name"}, Classification: "RequiredError", Message: "Required"}})
+	c.Assert(blogPost, DeepEquals, BlogPost{Post: Post{Title: "Glorious Post Title"}, Id: 1})
+}
+
+func (s *jsonSuite) Test_RequiredEmbeddedStructFieldNotSpecified(c *C) {
+	blogPost := BlogPost{}
+	req := newRequest(`POST`, ``, `{"id":1, "author":{"name":"Matt Holt"}}`, jsonContentType)
+	errs := Json(&blogPost, req)
+
+	c.Assert(errs, NotNil)
+	c.Assert(errs, HasLen, 2)
+	c.Assert(errs, DeepEquals, Errors{
+		Error{FieldNames: []string{"Title"}, Classification: "RequiredError", Message: "Required"},
+		Error{FieldNames: []string{"Title"}, Classification: "LengthError", Message: "Life is too short"}})
+	c.Assert(blogPost, DeepEquals, BlogPost{Id: 1, Author: Person{Name: "Matt Holt"}})
+}
+
+func (s *jsonSuite) Test_SliceOfPosts(c *C) {
+	posts := []Post{}
+	req := newRequest(`POST`, ``, `[{"title": "First Post"}, {"title": "Second Post"}]`, jsonContentType)
+	errs := Json(&posts, req)
+
+	c.Assert(errs, IsNil)
+	c.Assert(posts, DeepEquals, []Post{Post{Title: "First Post"}, Post{Title: "Second Post"}})
+}

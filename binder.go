@@ -147,17 +147,6 @@ func Json(jsonStruct interface{}, req *http.Request) Errors {
 		return append(bindErrors, ErrorInputNotByReference)
 	}
 
-	//reset element to zero variant
-	v = v.Elem()
-	if v.Kind() == reflect.Ptr && v.CanSet() && v.IsNil() {
-		v.Set(reflect.New(v.Type().Elem()))
-	}
-
-	v = reflect.Indirect(v)
-	if v.Kind() != reflect.Struct || !v.CanSet() {
-		return append(bindErrors, ErrorInputIsNotStructure)
-	}
-
 	if req.Body != nil {
 		defer req.Body.Close()
 		err := json.NewDecoder(req.Body).Decode(jsonStruct)

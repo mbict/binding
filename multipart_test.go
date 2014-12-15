@@ -13,6 +13,26 @@ type multipartSuite struct{}
 
 var _ = Suite(&multipartSuite{})
 
+func (s *multipartSuite) Test_NotByReference(c *C) {
+	post := Post{}
+	req := newMultipartRequest(bytes.NewBufferString(""), "")
+	errs := MultipartForm(post, req)
+
+	c.Assert(errs, NotNil)
+	c.Assert(errs, HasLen, 1)
+	c.Assert(errs[0], DeepEquals, ErrorInputNotByReference)
+}
+
+func (s *multipartSuite) Test_NotAStruct(c *C) {
+	test := int(1)
+	req := newMultipartRequest(bytes.NewBufferString(""), "")
+	errs := MultipartForm(&test, req)
+
+	c.Assert(errs, NotNil)
+	c.Assert(errs, HasLen, 1)
+	c.Assert(errs[0], DeepEquals, ErrorInputIsNotStructure)
+}
+
 func (s *multipartSuite) Test_HappyPath(c *C) {
 	blogPost := BlogPost{Post: Post{Title: "Glorious Post Title"}, Id: 1, Author: Person{Name: "Matt Holt"}}
 	b, w := makeMultipartPayload(blogPost)

@@ -1,6 +1,7 @@
 package binder
 
 import (
+	"io"
 	"mime/multipart"
 	"net/http"
 	"strings"
@@ -71,7 +72,12 @@ func (p Post) ValidateBinder(req *http.Request, errors Errors) Errors {
 }
 
 func newRequest(method, query, body, contentType string) *http.Request {
-	req, err := http.NewRequest(method, query, strings.NewReader(body))
+
+	var bodyReader io.Reader
+	if body != "-nil-" {
+		bodyReader = strings.NewReader(body)
+	}
+	req, err := http.NewRequest(method, query, bodyReader)
 	if err != nil {
 		panic(err)
 	}
