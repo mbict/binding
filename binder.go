@@ -22,7 +22,7 @@ var (
 
 func Bind(obj interface{}, req *http.Request) Errors {
 	contentType := req.Header.Get("Content-Type")
-	if req.Method == "POST" || req.Method == "PUT" || contentType != "" {
+	if req.Method == "POST" || req.Method == "PUT" || req.Method == "PATCH" || contentType != "" {
 		if strings.Contains(contentType, "form-urlencoded") {
 			return Form(obj, req)
 		} else if strings.Contains(contentType, "multipart/form-data") {
@@ -30,13 +30,11 @@ func Bind(obj interface{}, req *http.Request) Errors {
 		} else if strings.Contains(contentType, "json") {
 			return Json(obj, req)
 		} else {
-			var errors Errors
 			if contentType == "" {
-				errors.AddError(ErrorEmptyContentType)
+				return Errors{ErrorEmptyContentType}
 			} else {
-				errors.AddError(ErrorUnsupportedContentType)
+				return Errors{ErrorUnsupportedContentType}
 			}
-			return errors
 		}
 	} else {
 		return Form(obj, req)
