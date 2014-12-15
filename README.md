@@ -1,3 +1,8 @@
+[![Build Status](https://drone.io/github.com/mbict/binding/status.png)](https://drone.io/github.com/mbict/binding/latest)
+[![Build Status](https://travis-ci.org/mbict/binding.png?branch=master)](https://travis-ci.org/mbict/binding)
+[![Coverage Status](https://coveralls.io/repos/mbict/binding/badge.png)](https://coveralls.io/r/mbict/binding)
+[![GoDoc](https://godoc.org/github.com/mbict/binding?status.png)](http://godoc.org/github.com/mbict/binding)
+
 binding
 =======
 
