@@ -1,4 +1,4 @@
-package binder
+package binding
 
 const (
 	ContentTypeError     = "ContentTypeError"

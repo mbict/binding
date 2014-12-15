@@ -1,24 +1,18 @@
-binding [![Build Status](https://drone.io/github.com/macaron-contrib/binding/status.png)](https://drone.io/github.com/macaron-contrib/binding/latest) [![](http://gocover.io/_badge/github.com/macaron-contrib/binding)](http://gocover.io/github.com/macaron-contrib/binding)
+binding
 =======
 
-Middlware binding provides request data binding and validation for [Macaron](https://github.com/Unknwon/macaron).
-
-[API Reference](https://gowalker.org/github.com/macaron-contrib/binding)
 
 ### Installation
 
-	go get github.com/macaron-contrib/binding
+	go get github.com/mbict/binding
 	
 ## Features
 
- - Automatically converts data from a request into a struct ready for your application
+ - Automatically converts data from a request into a struct
  - Supports form, JSON, and multipart form data (including file uploads)
- - Can use interfaces
  - Provides data validation facilities
  	- Enforces required fields
  	- Invoke your own data validator
- - Built-in error handling (or use your own)
- - 99% test coverage
 
 ## Usage
 
@@ -28,30 +22,38 @@ Suppose you have a contact form on your site where at least name and message are
 
 ```go
 type ContactForm struct {
-	Name    string `form:"name" binding:"required"`
+	Name    string `form:"name" bind:"required"`
 	Email   string `form:"email"`
-	Message string `form:"message" binding:"required"`
+	Message string `form:"message" bind:"required"`
 }
 ```
 
-Then we simply add our route in Macaron:
+In your http handle add 
 
 ```go
-m.Post("/contact/submit", binding.Bind(ContactForm{}), func(contact ContactForm) string {
-	return fmt.Sprintf("Name: %s\nEmail: %s\nMessage: %s",
-		contact.Name, contact.Email, contact.Message)
-})
+func(w http.ResponseWriter, r *http.Request) {
+	contactForm := ContactForm{}
+	errs := binding.Bind(&contactForm, r)
+	...
+}
 ```
 
-That's it! The `binding.Bind` function takes care of validating required fields. If there are any errors (like a required field is empty), `binding` will return an error to the client and your app won't even see the request.
+or in case you need to use the pointer variant. Yes `bind` support (nil) pointer structs
 
-(Caveat: Don't try to bind to embedded struct pointers; it won't work. See [martini-contrib/binding issue 30](https://github.com/martini-contrib/binding/issues/30) if you want to help with this.)
+```go
+func(w http.ResponseWriter, r *http.Request) {
+	contactForm := (*ContactForm)(nil))
+	errs := binding.Bind(&contactForm, r)
+	...
+}
+```
+
+That's it! The `binding.Bind` function takes care of validating required fields. If there are any errors (like a required field is empty), `bind` will return all validation errors.
 
 
 #### Getting JSON data from a request
 
 To get data from JSON payloads, simply use the `json:` struct tags instead of `form:`. Pro Tip: Use [JSON-to-Go](http://mholt.github.io/json-to-go/) to correctly convert JSON to a Go type definition. It's useful if you're new to this or the structure is large/complex.
-
 
 
 #### Custom validation
@@ -74,37 +76,15 @@ func (cf ContactForm) Validate(errors binding.Errors, req *http.Request) binding
 Now, any contact form submissions with "Go needs generics" in the message will return an error explaining your folly.
 
 
-#### Binding to interfaces
-
-If you'd like to bind the data to an interface rather than to a concrete struct, you can specify the interface and use it like this:
-
-```go
-m.Post("/contact/submit", binding.Bind(ContactForm{}, (*MyInterface)(nil)), func(contact MyInterface) {
-	// ... your struct became an interface!
-})
-```
-
-
-
-## Description of Handlers
-
-Each of these middleware handlers are independent and optional, though be aware that some handlers invoke other ones.
-
-
 ### Bind
 
 `binding.Bind` is a convenient wrapper over the other handlers in this package. It does the following boilerplate for you:
 
  1. Deserializes request data into a struct
  2. Performs validation with `binding.Validate`
- 3. Bails out with `binding.ErrorHandler` if there are any errors
-
-Your application (the final handler) will not even see the request if there are any errors.
+ 3. Returns any validation errors
 
 Content-Type will be used to know how to deserialize the requests.
-
-**Important safety tip:** Don't attempt to bind a pointer to a struct. This will cause a panic [to prevent a race condition](https://github.com/codegangsta/martini-contrib/pull/34#issuecomment-29683659) where every request would be pointing to the same struct.
-
 
 ### Form
 
@@ -112,9 +92,7 @@ Content-Type will be used to know how to deserialize the requests.
 
  1. Deserializes request data into a struct
  2. Performs validation with `binding.Validate`
-
-Note that it does not handle errors. You may receive a `binding.Errors` into your own handler if you want to handle errors. (For automatic error handling, use `binding.Bind`.)
-
+ 3. Returns any validation errors
 
 
 ### MultipartForm and file uploads
@@ -125,8 +103,7 @@ This handler does the following:
 
  1. Deserializes request data into a struct
  2. Performs validation with `binding.Validate`
-
-Again, like `binding.Form`, no error handling is performed, but you can get the errors in your handler by receiving a `binding.Errors` type.
+ 3. Returns any validation errors
 
 #### MultipartForm example
 
@@ -134,6 +111,15 @@ Again, like `binding.Form`, no error handling is performed, but you can get the 
 type UploadForm struct {
 	Title      string                `form:"title"`
 	TextUpload *multipart.FileHeader `form:"txtUpload"`
+}
+
+func(w http.ResponseWriter, r *http.Request) {
+	uploadForm := UploadForm{}
+	errs := binding.MultipartForm(&uploadForm, r)
+	
+	if 
+	file, err := uf.TextUpload.Open()
+	...
 }
 
 func main() {
@@ -152,27 +138,8 @@ func main() {
 
  1. Deserializes request data into a struct
  2. Performs validation with `binding.Validate`
-
-Similar to `binding.Form`, no error handling is performed, but you can get the errors and handle them yourself.
-
-### Validate
-
-`binding.Validate` receives a populated struct and checks it for errors, first by enforcing the `binding:"required"` value on struct field tags, then by executing the `Validate()` method on the struct, if it is a `binding.Validator`.
-
-*Note:* Marking a field as "required" means that you do not allow the zero value for that type (i.e. if you want to allow 0 in an int field, do not make it required).
-
-### ErrorHandler
-
-`binding.ErrorHandler` is a small middleware that simply writes an error code to the response and also a JSON payload describing the errors, *if* any errors have been mapped to the context. It does nothing if there are no errors.
-
- - Deserialization errors yield a 400
- - Content-Type errors yield a 415
- - Any other kinds of errors (including your own) yield a 422 (Unprocessable Entity)
+ 3. Returns any validation errors
 
 ## Credits
 
-This package is forked from [martini-contrib/binding](https://github.com/martini-contrib/binding) with modifications.
-
-## License
-
-This project is under Apache v2 License. See the [LICENSE](LICENSE) file for the full license text.
+This package is forked from [macaron-contrib/binding](https://github.com/macaron-contrib/binding) with modifications.

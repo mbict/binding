@@ -1,4 +1,4 @@
-package binder
+package binding
 
 import . "gopkg.in/check.v1"
 
