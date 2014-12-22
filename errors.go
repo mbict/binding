@@ -14,6 +14,12 @@ const (
 	MaxSizeError      = "MaxSizeError"
 	EmailError        = "EmailError"
 	UrlError          = "UrlError"
+	RangeError        = "RangeError"
+	InError           = "InError"
+	NotInError        = "NotInError"
+	IncludeError      = "IncludeError"
+	ExcludeError      = "ExcludeError"
+	DefaultError      = "DefaultError"
 )
 
 type (
@@ -84,7 +90,6 @@ func (e *Errors) Has(class string) bool {
 	return false
 }
 
-/*
 // WithClass gets a copy of errors that are classified by the
 // the given classification.
 func (e *Errors) WithClass(classification string) Errors {
@@ -112,6 +117,17 @@ func (e *Errors) ForField(name string) Errors {
 	return errs
 }
 
+func (e *Errors) HasField(name string) bool {
+	for _, err := range *e {
+		for _, fieldName := range err.Fields() {
+			if fieldName == name {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // Get gets errors of a particular class for the specified
 // field name.
 func (e *Errors) Get(class, fieldName string) Errors {
@@ -128,7 +144,6 @@ func (e *Errors) Get(class, fieldName string) Errors {
 	}
 	return errs
 }
-*/
 
 // Fields returns the list of field names this error is
 // associated with.

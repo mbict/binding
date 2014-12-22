@@ -213,6 +213,11 @@ func (s *validateSuite) Test_ListOfInvalidCustomValidations(c *C) {
 			Email:        ",",
 			Url:          ",",
 			UrlEmpty:     "",
+			Range:        3,
+			InInvalid:    "4",
+			NotIn:        "1",
+			Include:      "def",
+			Exclude:      "abc",
 		},
 	}, dummyRequest())
 	c.Assert(errs, NotNil)
@@ -257,6 +262,36 @@ func (s *validateSuite) Test_ListOfInvalidCustomValidations(c *C) {
 			Classification: UrlError,
 			Message:        "Url",
 		},
+		Error{
+			FieldNames:     []string{"Range"},
+			Classification: RangeError,
+			Message:        "Range",
+		},
+		Error{
+			FieldNames:     []string{"In"},
+			Classification: DefaultError,
+			Message:        "Default",
+		},
+		Error{
+			FieldNames:     []string{"InInvalid"},
+			Classification: InError,
+			Message:        "In",
+		},
+		Error{
+			FieldNames:     []string{"NotIn"},
+			Classification: NotInError,
+			Message:        "NotIn",
+		},
+		Error{
+			FieldNames:     []string{"Include"},
+			Classification: IncludeError,
+			Message:        "Include",
+		},
+		Error{
+			FieldNames:     []string{"Exclude"},
+			Classification: ExcludeError,
+			Message:        "Exclude",
+		},
 	})
 }
 
@@ -271,6 +306,10 @@ func (s *validateSuite) Test_ListOfValidCustomValidations(c *C) {
 			MaxSizeSlice: []string{"1"},
 			Email:        "123@456.com",
 			Url:          "http://123.456",
+			Range:        2,
+			In:           "1",
+			InInvalid:    "1",
+			Include:      "abc",
 		},
 	}, dummyRequest())
 	c.Assert(errs, IsNil)

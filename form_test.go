@@ -167,6 +167,16 @@ func (s *formSuite) Test_EmbedStructPointer(c *C) {
 	c.Assert(embedPerson, DeepEquals, EmbedPerson{&Person{Name: "Glorious Post Title", Email: "Lorem ipsum dolor sit amet"}})
 }
 
+func (s *formSuite) Test_EmbedStructPointerPtr(c *C) {
+	embedPerson := (*EmbedPerson)(nil)
+	req := newRequest(`GET`, `?name=Glorious+Post+Title&email=Lorem+ipsum+dolor+sit+amet`, ``, formContentType)
+	errs := Form(&embedPerson, req)
+
+	c.Assert(errs, IsNil)
+	c.Assert(embedPerson, DeepEquals, &EmbedPerson{&Person{Name: "Glorious Post Title", Email: "Lorem ipsum dolor sit amet"}})
+}
+
+/*
 func (s *formSuite) Test_EmbedStructPointerRemainNilIfNotBinded(c *C) {
 	embedPerson := EmbedPerson{}
 	req := newRequest(`GET`, `?`, ``, formContentType)
@@ -175,3 +185,14 @@ func (s *formSuite) Test_EmbedStructPointerRemainNilIfNotBinded(c *C) {
 	c.Assert(errs, IsNil)
 	c.Assert(embedPerson, DeepEquals, EmbedPerson{nil})
 }
+*/
+
+/*
+func (s *formSuite) Test_EmbedStructPointerRemainNilIfNotBindedPtr(c *C) {
+	embedPerson := (*EmbedPerson)(nil)
+	req := newRequest(`GET`, `?`, ``, formContentType)
+	errs := Form(&embedPerson, req)
+
+	c.Assert(errs, IsNil)
+	c.Assert(embedPerson, DeepEquals, &EmbedPerson{nil})
+}*/

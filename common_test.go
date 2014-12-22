@@ -57,6 +57,13 @@ type (
 		Email        string   `form:"Email" binding:"Email"`
 		Url          string   `form:"Url" binding:"Url"`
 		UrlEmpty     string   `form:"UrlEmpty" binding:"Url"`
+		Range        int      `form:"Range" binding:"Range(1,2)"`
+		RangeInvalid int      `form:"RangeInvalid" binding:"Range(1)"`
+		In           string   `form:"In" binding:"Default(0);In(1,2,3)"`
+		InInvalid    string   `form:"InInvalid" binding:"In(1,2,3)"`
+		NotIn        string   `form:"NotIn" binding:"NotIn(1,2,3)"`
+		Include      string   `form:"Include" binding:"Include(a)"`
+		Exclude      string   `form:"Exclude" binding:"Exclude(a)"`
 	}
 )
 
@@ -66,6 +73,17 @@ func (p Post) ValidateBinder(req *http.Request, errors Errors) Errors {
 			FieldNames:     []string{"Title"},
 			Classification: "LengthError",
 			Message:        "Life is too short",
+		})
+	}
+	return errors
+}
+
+func (p EmbedPerson) ValidateBinder(req *http.Request, errors Errors) Errors {
+	if len(p.Email) <= 0 {
+		errors = append(errors, Error{
+			FieldNames:     []string{"Email"},
+			Classification: "LengthError",
+			Message:        "Email is too short",
 		})
 	}
 	return errors

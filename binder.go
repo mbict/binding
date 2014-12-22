@@ -185,7 +185,8 @@ func validateStruct(errors Errors, obj interface{}) Errors {
 			continue
 		}
 
-		fieldValue := val.Field(i).Interface()
+		fieldVal := val.Field(i)
+		fieldValue := fieldVal.Interface()
 		zero := reflect.Zero(field.Type).Interface()
 
 		// Validate nested and embedded structs (if pointer, only do so if not nil)
@@ -196,6 +197,7 @@ func validateStruct(errors Errors, obj interface{}) Errors {
 		}
 
 		// Match rules.
+	VALIDATE_RULES:
 		for _, rule := range strings.Split(field.Tag.Get("binding"), ";") {
 			if len(rule) == 0 {
 				continue
@@ -210,39 +212,39 @@ func validateStruct(errors Errors, obj interface{}) Errors {
 			case rule == "AlphaDash":
 				if alphaDashPattern.MatchString(fmt.Sprintf("%v", fieldValue)) {
 					errors.Add([]string{field.Name}, AlphaDashError, "AlphaDash")
-					break
+					break VALIDATE_RULES
 				}
 			case rule == "AlphaDashDot":
 				if alphaDashDotPattern.MatchString(fmt.Sprintf("%v", fieldValue)) {
 					errors.Add([]string{field.Name}, AlphaDashDotError, "AlphaDashDot")
-					break
+					break VALIDATE_RULES
 				}
 			case strings.HasPrefix(rule, "MinSize("):
 				min, _ := strconv.Atoi(rule[8 : len(rule)-1])
 				if str, ok := fieldValue.(string); ok && utf8.RuneCountInString(str) < min {
 					errors.Add([]string{field.Name}, MinSizeError, "MinSize")
-					break
+					break VALIDATE_RULES
 				}
 				v := reflect.ValueOf(fieldValue)
 				if v.Kind() == reflect.Slice && v.Len() < min {
 					errors.Add([]string{field.Name}, MinSizeError, "MinSize")
-					break
+					break VALIDATE_RULES
 				}
 			case strings.HasPrefix(rule, "MaxSize("):
 				max, _ := strconv.Atoi(rule[8 : len(rule)-1])
 				if str, ok := fieldValue.(string); ok && utf8.RuneCountInString(str) > max {
 					errors.Add([]string{field.Name}, MaxSizeError, "MaxSize")
-					break
+					break VALIDATE_RULES
 				}
 				v := reflect.ValueOf(fieldValue)
 				if v.Kind() == reflect.Slice && v.Len() > max {
 					errors.Add([]string{field.Name}, MaxSizeError, "MaxSize")
-					break
+					break VALIDATE_RULES
 				}
 			case rule == "Email":
 				if !emailPattern.MatchString(fmt.Sprintf("%v", fieldValue)) {
 					errors.Add([]string{field.Name}, EmailError, "Email")
-					break
+					break VALIDATE_RULES
 				}
 			case rule == "Url":
 				str := fmt.Sprintf("%v", fieldValue)
@@ -250,12 +252,70 @@ func validateStruct(errors Errors, obj interface{}) Errors {
 					continue
 				} else if !urlPattern.MatchString(str) {
 					errors.Add([]string{field.Name}, UrlError, "Url")
+					break VALIDATE_RULES
+				}
+
+			// TODO write test for these validation rules
+			case strings.HasPrefix(rule, "Range("):
+				nums := strings.Split(rule[6:len(rule)-1], ",")
+				if len(nums) != 2 {
 					break
 				}
+				val, _ := strconv.ParseInt(fmt.Sprintf("%v", fieldValue), 10, 32)
+				a, _ := strconv.ParseInt(nums[0], 10, 32)
+				b, _ := strconv.ParseInt(nums[1], 10, 32)
+				if val < a || val > b {
+					errors.Add([]string{field.Name}, RangeError, "Range")
+					break VALIDATE_RULES
+				}
+			case strings.HasPrefix(rule, "In("):
+				if !in(fieldValue, rule[3:len(rule)-1]) {
+					errors.Add([]string{field.Name}, InError, "In")
+					break VALIDATE_RULES
+				}
+			case strings.HasPrefix(rule, "NotIn("):
+				if in(fieldValue, rule[6:len(rule)-1]) {
+					errors.Add([]string{field.Name}, NotInError, "NotIn")
+					break VALIDATE_RULES
+				}
+			case strings.HasPrefix(rule, "Include("):
+				if !strings.Contains(fmt.Sprintf("%v", fieldValue), rule[8:len(rule)-1]) {
+					errors.Add([]string{field.Name}, IncludeError, "Include")
+					break VALIDATE_RULES
+				}
+			case strings.HasPrefix(rule, "Exclude("):
+				if strings.Contains(fmt.Sprintf("%v", fieldValue), rule[8:len(rule)-1]) {
+					errors.Add([]string{field.Name}, ExcludeError, "Exclude")
+					break
+				}
+			case strings.HasPrefix(rule, "Default("):
+				if reflect.DeepEqual(zero, fieldValue) {
+					if fieldVal.CanAddr() {
+						setWithProperType(field.Type.Kind(), rule[8:len(rule)-1], fieldVal, field.Tag.Get("form"), errors)
+					} else {
+						errors.Add([]string{field.Name}, DefaultError, "Default")
+						break VALIDATE_RULES
+					}
+				}
+
 			}
 		}
 	}
 	return errors
+}
+
+//validation in function
+func in(fieldValue interface{}, arr string) bool {
+	val := fmt.Sprintf("%v", fieldValue)
+	vals := strings.Split(arr, ",")
+	isIn := false
+	for _, v := range vals {
+		if v == val {
+			isIn = true
+			break
+		}
+	}
+	return isIn
 }
 
 // Takes values from the form data and puts them into a struct
@@ -384,10 +444,15 @@ func setWithProperType(valueKind reflect.Kind, val string, structField reflect.V
 
 // validate by the build in validation rules and tries to run the model ValidateBinder function if set
 func validate(obj interface{}, req *http.Request) Errors {
+	if obj == nil {
+		return nil
+	}
+
 	var bindErrors Errors
 	v := reflect.ValueOf(obj)
 	k := v.Kind()
 	if k == reflect.Interface || k == reflect.Ptr {
+		//skip nil pointers
 		v = v.Elem()
 		k = v.Kind()
 	}
