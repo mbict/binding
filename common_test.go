@@ -33,14 +33,16 @@ type (
 	// and multiple file uploads
 	BlogPost struct {
 		Post
-		Id          int                     `form:"id" binding:"Required"`
-		Ignored     string                  `form:"-" json:"-"`
-		Ratings     []int                   `form:"rating" json:"ratings"`
-		Author      Person                  `json:"author"`
-		Coauthor    *Person                 `json:"coauthor"`
-		HeaderImage *multipart.FileHeader   `form:"headerImage"`
-		Pictures    []*multipart.FileHeader `form:"picture"`
-		unexported  string                  `form:"unexported"`
+		Id           int                     `form:"id" binding:"Required"`
+		Ignored      string                  `form:"-" json:"-"`
+		Ratings      []int                   `form:"rating" json:"ratings"`
+		Author       Person                  `json:"author"`
+		Coauthor     *Person                 `json:"coauthor"`
+		Readers      []Person                `schema:"readers"`
+		Contributors []*Person               `schema:"contributors"`
+		HeaderImage  *multipart.FileHeader   `form:"headerImage"`
+		Pictures     []*multipart.FileHeader `form:"picture"`
+		unexported   string                  `form:"unexported"`
 	}
 
 	EmbedPerson struct {
@@ -67,7 +69,7 @@ type (
 	}
 )
 
-func (p Post) ValidateBinder(req *http.Request, errors Errors) Errors {
+func (p Post) Validate(errors Errors) Errors {
 	if len(p.Title) < 10 {
 		errors = append(errors, Error{
 			FieldNames:     []string{"Title"},
@@ -78,7 +80,7 @@ func (p Post) ValidateBinder(req *http.Request, errors Errors) Errors {
 	return errors
 }
 
-func (p EmbedPerson) ValidateBinder(req *http.Request, errors Errors) Errors {
+func (p EmbedPerson) Validate(errors Errors) Errors {
 	if len(p.Email) <= 0 {
 		errors = append(errors, Error{
 			FieldNames:     []string{"Email"},

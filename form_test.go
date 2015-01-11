@@ -92,7 +92,7 @@ func (s *formSuite) Test_MalformedBody(c *C) {
 
 func (s *formSuite) Test_NestedEmbeddedStructs(c *C) {
 	blogPost := BlogPost{}
-	req := newRequest(`POST`, ``, `title=Glorious+Post+Title&id=1&name=Matt+Holt`, formContentType)
+	req := newRequest(`POST`, ``, `title=Glorious+Post+Title&id=1&author.name=Matt+Holt`, formContentType)
 	errs := Form(&blogPost, req)
 
 	c.Assert(errs, IsNil)
@@ -101,7 +101,7 @@ func (s *formSuite) Test_NestedEmbeddedStructs(c *C) {
 
 func (s *formSuite) Test_RequiredEmbeddedStructFieldNotSpecified(c *C) {
 	blogPost := BlogPost{}
-	req := newRequest(`POST`, ``, `id=1&name=Matt+Holt`, formContentType)
+	req := newRequest(`POST`, ``, `id=1&author.name=Matt+Holt`, formContentType)
 	errs := Form(&blogPost, req)
 
 	c.Assert(errs, NotNil)
@@ -124,7 +124,7 @@ func (s *formSuite) Test_RequiredNestedStructFieldNotSpecified(c *C) {
 
 func (s *formSuite) Test_MultipleValuesIntoSlice(c *C) {
 	blogPost := BlogPost{}
-	req := newRequest(`POST`, ``, `title=Glorious+Post+Title&id=1&name=Matt+Holt&rating=4&rating=3&rating=5`, formContentType)
+	req := newRequest(`POST`, ``, `title=Glorious+Post+Title&id=1&author.name=Matt+Holt&rating=4&rating=3&rating=5`, formContentType)
 	errs := Form(&blogPost, req)
 
 	c.Assert(errs, IsNil)
@@ -133,7 +133,7 @@ func (s *formSuite) Test_MultipleValuesIntoSlice(c *C) {
 
 func (s *formSuite) Test_UnexportedField(c *C) {
 	blogPost := BlogPost{}
-	req := newRequest(`POST`, ``, `title=Glorious+Post+Title&id=1&name=Matt+Holt&unexported=foo`, formContentType)
+	req := newRequest(`POST`, ``, `title=Glorious+Post+Title&id=1&author.name=Matt+Holt&unexported=foo`, formContentType)
 	errs := Form(&blogPost, req)
 
 	c.Assert(errs, IsNil)

@@ -90,7 +90,7 @@ func (s *jsonSuite) Test_RequiredNestedStructFieldNotSpecified(c *C) {
 
 	c.Assert(errs, NotNil)
 	c.Assert(errs, HasLen, 1)
-	c.Assert(errs, DeepEquals, Errors{Error{FieldNames: []string{"Name"}, Classification: "RequiredError", Message: "Required"}})
+	c.Assert(errs, DeepEquals, Errors{Error{FieldNames: []string{"Author.Name"}, Classification: "RequiredError", Message: "Required"}})
 	c.Assert(blogPost, DeepEquals, BlogPost{Post: Post{Title: "Glorious Post Title"}, Id: 1})
 }
 

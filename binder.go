@@ -77,8 +77,8 @@ func Form(formStruct interface{}, req *http.Request) Errors {
 	if parseErr != nil {
 		bindErrors.Add([]string{}, DeserializationError, parseErr.Error())
 	}
-	mapForm(v, req.Form, nil, bindErrors)
-	validateErrs := validate(v.Interface(), req)
+	mapForm("", v, req.Form, nil, bindErrors)
+	validateErrs := validate(v.Interface())
 	if validateErrs != nil {
 		bindErrors = append(bindErrors, validateErrs...)
 	}
@@ -124,8 +124,8 @@ func MultipartForm(formStruct interface{}, req *http.Request) Errors {
 		}
 	}
 
-	mapForm(v, req.MultipartForm.Value, req.MultipartForm.File, bindErrors)
-	validateErrs := validate(v.Interface(), req)
+	mapForm("", v, req.MultipartForm.Value, req.MultipartForm.File, bindErrors)
+	validateErrs := validate(v.Interface())
 	if validateErrs != nil {
 		return append(bindErrors, validateErrs...)
 	}
@@ -153,7 +153,7 @@ func Json(jsonStruct interface{}, req *http.Request) Errors {
 		}
 	}
 
-	validateErrs := validate(jsonStruct, req)
+	validateErrs := validate(jsonStruct)
 	if validateErrs != nil {
 		return append(bindErrors, validateErrs...)
 	}
@@ -168,7 +168,7 @@ var (
 )
 
 // Performs required field checking on a struct
-func validateStruct(errors Errors, obj interface{}) Errors {
+func validateStruct(errors Errors, obj interface{}, path string) Errors {
 	typ := reflect.TypeOf(obj)
 	val := reflect.ValueOf(obj)
 
@@ -193,7 +193,11 @@ func validateStruct(errors Errors, obj interface{}) Errors {
 		if field.Type.Kind() == reflect.Struct ||
 			(field.Type.Kind() == reflect.Ptr && !reflect.DeepEqual(zero, fieldValue) &&
 				field.Type.Elem().Kind() == reflect.Struct) {
-			errors = validateStruct(errors, fieldValue)
+			fieldPath := path
+			if field.Anonymous == false {
+				fieldPath = path + field.Name + "."
+			}
+			errors = validateStruct(errors, fieldValue, fieldPath)
 		}
 
 		// Match rules.
@@ -206,44 +210,44 @@ func validateStruct(errors Errors, obj interface{}) Errors {
 			switch {
 			case rule == "Required":
 				if reflect.DeepEqual(zero, fieldValue) {
-					errors.Add([]string{field.Name}, RequiredError, "Required")
+					errors.Add([]string{path + field.Name}, RequiredError, "Required")
 					break
 				}
 			case rule == "AlphaDash":
 				if alphaDashPattern.MatchString(fmt.Sprintf("%v", fieldValue)) {
-					errors.Add([]string{field.Name}, AlphaDashError, "AlphaDash")
+					errors.Add([]string{path + field.Name}, AlphaDashError, "AlphaDash")
 					break VALIDATE_RULES
 				}
 			case rule == "AlphaDashDot":
 				if alphaDashDotPattern.MatchString(fmt.Sprintf("%v", fieldValue)) {
-					errors.Add([]string{field.Name}, AlphaDashDotError, "AlphaDashDot")
+					errors.Add([]string{path + field.Name}, AlphaDashDotError, "AlphaDashDot")
 					break VALIDATE_RULES
 				}
 			case strings.HasPrefix(rule, "MinSize("):
 				min, _ := strconv.Atoi(rule[8 : len(rule)-1])
 				if str, ok := fieldValue.(string); ok && utf8.RuneCountInString(str) < min {
-					errors.Add([]string{field.Name}, MinSizeError, "MinSize")
+					errors.Add([]string{path + field.Name}, MinSizeError, "MinSize")
 					break VALIDATE_RULES
 				}
 				v := reflect.ValueOf(fieldValue)
 				if v.Kind() == reflect.Slice && v.Len() < min {
-					errors.Add([]string{field.Name}, MinSizeError, "MinSize")
+					errors.Add([]string{path + field.Name}, MinSizeError, "MinSize")
 					break VALIDATE_RULES
 				}
 			case strings.HasPrefix(rule, "MaxSize("):
 				max, _ := strconv.Atoi(rule[8 : len(rule)-1])
 				if str, ok := fieldValue.(string); ok && utf8.RuneCountInString(str) > max {
-					errors.Add([]string{field.Name}, MaxSizeError, "MaxSize")
+					errors.Add([]string{path + field.Name}, MaxSizeError, "MaxSize")
 					break VALIDATE_RULES
 				}
 				v := reflect.ValueOf(fieldValue)
 				if v.Kind() == reflect.Slice && v.Len() > max {
-					errors.Add([]string{field.Name}, MaxSizeError, "MaxSize")
+					errors.Add([]string{path + field.Name}, MaxSizeError, "MaxSize")
 					break VALIDATE_RULES
 				}
 			case rule == "Email":
 				if !emailPattern.MatchString(fmt.Sprintf("%v", fieldValue)) {
-					errors.Add([]string{field.Name}, EmailError, "Email")
+					errors.Add([]string{path + field.Name}, EmailError, "Email")
 					break VALIDATE_RULES
 				}
 			case rule == "Url":
@@ -251,7 +255,7 @@ func validateStruct(errors Errors, obj interface{}) Errors {
 				if len(str) == 0 {
 					continue
 				} else if !urlPattern.MatchString(str) {
-					errors.Add([]string{field.Name}, UrlError, "Url")
+					errors.Add([]string{path + field.Name}, UrlError, "Url")
 					break VALIDATE_RULES
 				}
 
@@ -265,27 +269,27 @@ func validateStruct(errors Errors, obj interface{}) Errors {
 				a, _ := strconv.ParseInt(nums[0], 10, 32)
 				b, _ := strconv.ParseInt(nums[1], 10, 32)
 				if val < a || val > b {
-					errors.Add([]string{field.Name}, RangeError, "Range")
+					errors.Add([]string{path + field.Name}, RangeError, "Range")
 					break VALIDATE_RULES
 				}
 			case strings.HasPrefix(rule, "In("):
 				if !in(fieldValue, rule[3:len(rule)-1]) {
-					errors.Add([]string{field.Name}, InError, "In")
+					errors.Add([]string{path + field.Name}, InError, "In")
 					break VALIDATE_RULES
 				}
 			case strings.HasPrefix(rule, "NotIn("):
 				if in(fieldValue, rule[6:len(rule)-1]) {
-					errors.Add([]string{field.Name}, NotInError, "NotIn")
+					errors.Add([]string{path + field.Name}, NotInError, "NotIn")
 					break VALIDATE_RULES
 				}
 			case strings.HasPrefix(rule, "Include("):
 				if !strings.Contains(fmt.Sprintf("%v", fieldValue), rule[8:len(rule)-1]) {
-					errors.Add([]string{field.Name}, IncludeError, "Include")
+					errors.Add([]string{path + field.Name}, IncludeError, "Include")
 					break VALIDATE_RULES
 				}
 			case strings.HasPrefix(rule, "Exclude("):
 				if strings.Contains(fmt.Sprintf("%v", fieldValue), rule[8:len(rule)-1]) {
-					errors.Add([]string{field.Name}, ExcludeError, "Exclude")
+					errors.Add([]string{path + field.Name}, ExcludeError, "Exclude")
 					break
 				}
 			case strings.HasPrefix(rule, "Default("):
@@ -293,7 +297,7 @@ func validateStruct(errors Errors, obj interface{}) Errors {
 					if fieldVal.CanAddr() {
 						setWithProperType(field.Type.Kind(), rule[8:len(rule)-1], fieldVal, field.Tag.Get("form"), errors)
 					} else {
-						errors.Add([]string{field.Name}, DefaultError, "Default")
+						errors.Add([]string{path + field.Name}, DefaultError, "Default")
 						break VALIDATE_RULES
 					}
 				}
@@ -318,9 +322,53 @@ func in(fieldValue interface{}, arr string) bool {
 	return isIn
 }
 
+/*
+func mapFormValues(field string, form map[string][]string) (result []map[string][]string) {
+	for key, values := range form {
+		parts := strings.SplitN(key, ".", 3)
+		if len(parts) == 3 && parts[0] == field {
+			index, err := strconv.Atoi(parts[1])
+			if err != nil {
+				continue
+			}
+
+			if len(result) < index+1 {
+				tmp := make([]map[string][]string, index+1)
+				copy(tmp, result)
+				result = tmp
+			}
+
+			if result[index] == nil {
+				result[index] = make(map[string][]string)
+			}
+			result[index][parts[2]] = values
+		}
+	}
+	return result
+}*/
+
+func pathSliceSize(field string, form map[string][]string) int {
+	size := 0
+	for key, _ := range form {
+		parts := strings.SplitN(key, ".", 3)
+		if len(parts) == 3 && parts[0] == field {
+			index, err := strconv.Atoi(parts[1])
+			if err != nil {
+				continue
+			}
+
+			if size < index+1 {
+				size = index + 1
+			}
+		}
+	}
+	return size
+}
+
+var fhType = reflect.TypeOf((*multipart.FileHeader)(nil))
+
 // Takes values from the form data and puts them into a struct
-func mapForm(formStruct reflect.Value, form map[string][]string,
-	formfile map[string][]*multipart.FileHeader, errors Errors) {
+func mapForm(path string, formStruct reflect.Value, form map[string][]string, formfile map[string][]*multipart.FileHeader, errors Errors) {
 	formStruct = reflect.Indirect(formStruct)
 	typ := formStruct.Type()
 
@@ -328,20 +376,80 @@ func mapForm(formStruct reflect.Value, form map[string][]string,
 		typeField := typ.Field(i)
 		structField := formStruct.Field(i)
 
-		if typeField.Type.Kind() == reflect.Ptr && typeField.Anonymous {
-			structField.Set(reflect.New(typeField.Type.Elem()))
-			mapForm(structField.Elem(), form, formfile, errors)
-			if reflect.DeepEqual(structField.Elem().Interface(), reflect.Zero(structField.Elem().Type()).Interface()) {
-				structField.Set(reflect.Zero(structField.Type()))
+		inputFieldName := typeField.Tag.Get("form")
+		if inputFieldName == "" {
+			inputFieldName = strings.ToLower(typeField.Name)
+		}
+
+		if typeField.Anonymous {
+			if typeField.Type.Kind() == reflect.Ptr {
+				structField.Set(reflect.New(typeField.Type.Elem()))
+				mapForm(path, structField.Elem(), form, formfile, errors)
+				if reflect.DeepEqual(structField.Elem().Interface(), reflect.Zero(structField.Elem().Type()).Interface()) {
+					structField.Set(reflect.Zero(structField.Type()))
+				}
+			} else {
+				mapForm(path, structField, form, formfile, errors)
+			}
+		} else if structField.Kind() == reflect.Slice && structField.Type().Elem() == fhType { //slice of file uploads
+			inputFile, exists := formfile[path+inputFieldName]
+			if exists {
+				numFiles := len(inputFile)
+				if numFiles > 0 {
+					slice := reflect.MakeSlice(structField.Type(), numFiles, numFiles)
+					for i := 0; i < numFiles; i++ {
+						slice.Index(i).Set(reflect.ValueOf(inputFile[i]))
+					}
+					structField.Set(slice)
+				}
+			}
+		} else if structField.Type() == fhType { //single file
+			inputFile, exists := formfile[path+inputFieldName]
+			if exists && len(inputFile) >= 1 {
+				structField.Set(reflect.ValueOf(inputFile[0]))
+			}
+		} else if typeField.Type.Kind() == reflect.Ptr && typeField.Type.Elem().Kind() == reflect.Struct {
+			//find if we have posted this field and or need to init the pointer
+			for key, _ := range form {
+				if strings.HasPrefix(key, path+inputFieldName+".") {
+					if structField.IsNil() {
+						structField.Set(reflect.New(typeField.Type.Elem()))
+					}
+					mapForm(path+inputFieldName+".", structField.Elem(), form, formfile, errors)
+					break
+				}
 			}
 		} else if typeField.Type.Kind() == reflect.Struct {
-			mapForm(structField, form, formfile, errors)
+			mapForm(path+inputFieldName+".", structField, form, formfile, errors)
+		} else if typeField.Type.Kind() == reflect.Slice &&
+			(typeField.Type.Elem().Kind() == reflect.Struct ||
+				(typeField.Type.Elem().Kind() == reflect.Ptr && typeField.Type.Elem().Elem().Kind() == reflect.Struct)) {
+
+			//size slice (if necessary)
+			size := pathSliceSize(path+inputFieldName, form)
+			if structField.Len() < size {
+				value := reflect.MakeSlice(structField.Type(), size, size)
+				if structField.Len() > 0 {
+					reflect.Copy(value, structField)
+				}
+				structField.Set(value)
+			}
+
+			//assign structs
+			for i := 0; i < size; i++ {
+				sliceValue := structField.Index(i)
+				if sliceValue.Kind() == reflect.Ptr && sliceValue.IsNil() {
+					sliceValue.Set(reflect.New(sliceValue.Type().Elem()))
+				}
+				mapForm(path+inputFieldName+"."+strconv.Itoa(i)+".", sliceValue, form, formfile, errors)
+			}
+
 		} else if inputFieldName := typeField.Tag.Get("form"); inputFieldName != "" {
 			if !structField.CanSet() {
 				continue
 			}
 
-			inputValue, exists := form[inputFieldName]
+			inputValue, exists := form[path+inputFieldName]
 			if exists {
 				numElems := len(inputValue)
 				if structField.Kind() == reflect.Slice && numElems > 0 {
@@ -354,23 +462,6 @@ func mapForm(formStruct reflect.Value, form map[string][]string,
 				} else {
 					setWithProperType(typeField.Type.Kind(), inputValue[0], structField, inputFieldName, errors)
 				}
-				continue
-			}
-
-			inputFile, exists := formfile[inputFieldName]
-			if !exists {
-				continue
-			}
-			fhType := reflect.TypeOf((*multipart.FileHeader)(nil))
-			numElems := len(inputFile)
-			if structField.Kind() == reflect.Slice && numElems > 0 && structField.Type().Elem() == fhType {
-				slice := reflect.MakeSlice(structField.Type(), numElems, numElems)
-				for i := 0; i < numElems; i++ {
-					slice.Index(i).Set(reflect.ValueOf(inputFile[i]))
-				}
-				structField.Set(slice)
-			} else if structField.Type() == fhType {
-				structField.Set(reflect.ValueOf(inputFile[0]))
 			}
 		}
 	}
@@ -443,7 +534,7 @@ func setWithProperType(valueKind reflect.Kind, val string, structField reflect.V
 }
 
 // validate by the build in validation rules and tries to run the model ValidateBinder function if set
-func validate(obj interface{}, req *http.Request) Errors {
+func validate(obj interface{}) Errors {
 	if obj == nil {
 		return nil
 	}
@@ -460,15 +551,15 @@ func validate(obj interface{}, req *http.Request) Errors {
 	if k == reflect.Slice || k == reflect.Array {
 		for i := 0; i < v.Len(); i++ {
 			e := v.Index(i).Interface()
-			bindErrors = validateStruct(bindErrors, e)
+			bindErrors = validateStruct(bindErrors, e, strconv.Itoa(i)+".")
 			if validator, ok := e.(Validator); ok {
-				bindErrors = validator.ValidateBinder(req, bindErrors)
+				bindErrors = validator.Validate(bindErrors)
 			}
 		}
 	} else {
-		bindErrors = validateStruct(bindErrors, obj)
+		bindErrors = validateStruct(bindErrors, obj, "")
 		if validator, ok := obj.(Validator); ok {
-			bindErrors = validator.ValidateBinder(req, bindErrors)
+			bindErrors = validator.Validate(bindErrors)
 		}
 	}
 	return bindErrors
@@ -484,7 +575,7 @@ type (
 		// in your application. For example, you might verify that a credit
 		// card number matches a valid pattern, but you probably wouldn't
 		// perform an actual credit card authorization here.
-		ValidateBinder(*http.Request, Errors) Errors
+		Validate(Errors) Errors
 	}
 )
 

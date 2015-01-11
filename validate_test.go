@@ -1,10 +1,6 @@
 package binding
 
-import (
-	"net/http"
-
-	. "gopkg.in/check.v1"
-)
+import . "gopkg.in/check.v1"
 
 type validateSuite struct{}
 
@@ -20,7 +16,7 @@ func (s *validateSuite) Test_NoErrors(c *C) {
 		Author: Person{
 			Name: "Matt Holt",
 		},
-	}, dummyRequest())
+	})
 	c.Assert(errs, IsNil)
 }
 
@@ -33,7 +29,7 @@ func (s *validateSuite) Test_IdRequired(c *C) {
 		Author: Person{
 			Name: "Matt Holt",
 		},
-	}, dummyRequest())
+	})
 
 	c.Assert(errs, NotNil)
 	c.Assert(errs, DeepEquals, Errors{Error{FieldNames: []string{"Id"}, Classification: RequiredError, Message: "Required"}})
@@ -48,7 +44,7 @@ func (s *validateSuite) Test_EmbeddedStructFieldRequired(c *C) {
 		Author: Person{
 			Name: "Matt Holt",
 		},
-	}, dummyRequest())
+	})
 	c.Assert(errs, NotNil)
 	c.Assert(errs, DeepEquals, Errors{
 		Error{
@@ -71,11 +67,11 @@ func (s *validateSuite) Test_NestedStructFieldRequired(c *C) {
 			Title:   "Behold The Title!",
 			Content: "And some content",
 		},
-	}, dummyRequest())
+	})
 	c.Assert(errs, NotNil)
 	c.Assert(errs, DeepEquals, Errors{
 		Error{
-			FieldNames:     []string{"Name"},
+			FieldNames:     []string{"Author.Name"},
 			Classification: RequiredError,
 			Message:        "Required",
 		},
@@ -93,11 +89,11 @@ func (s *validateSuite) Test_RequiredFieldMissingInNestedStructPointer(c *C) {
 			Name: "Matt Holt",
 		},
 		Coauthor: &Person{},
-	}, dummyRequest())
+	})
 	c.Assert(errs, NotNil)
 	c.Assert(errs, DeepEquals, Errors{
 		Error{
-			FieldNames:     []string{"Name"},
+			FieldNames:     []string{"Coauthor.Name"},
 			Classification: RequiredError,
 			Message:        "Required",
 		},
@@ -117,7 +113,7 @@ func (s *validateSuite) Test_AllRequiredFieldsSpecifiedInNestedStructPointer(c *
 		Coauthor: &Person{
 			Name: "Jeremy Saenz",
 		},
-	}, dummyRequest())
+	})
 	c.Assert(errs, IsNil)
 }
 
@@ -131,7 +127,7 @@ func (s *validateSuite) Test_CustomStructValidation(c *C) {
 		Author: Person{
 			Name: "Matt Holt",
 		},
-	}, dummyRequest())
+	})
 	c.Assert(errs, NotNil)
 	c.Assert(errs, DeepEquals, Errors{
 		Error{
@@ -164,7 +160,7 @@ func (s *validateSuite) Test_ListValidation(c *C) {
 				Name: "Leeor Aharon",
 			},
 		},
-	}, dummyRequest())
+	})
 	c.Assert(errs, IsNil)
 }
 
@@ -190,7 +186,7 @@ func (s *validateSuite) Test_ListValidationErrors(c *C) {
 				Name: "Leeor Aharon",
 			},
 		},
-	}, dummyRequest())
+	})
 	c.Assert(errs, NotNil)
 	c.Assert(errs, DeepEquals, Errors{
 		Error{
@@ -219,76 +215,76 @@ func (s *validateSuite) Test_ListOfInvalidCustomValidations(c *C) {
 			Include:      "def",
 			Exclude:      "abc",
 		},
-	}, dummyRequest())
+	})
 	c.Assert(errs, NotNil)
 	c.Assert(errs, DeepEquals, Errors{
 		Error{
-			FieldNames:     []string{"AlphaDash"},
+			FieldNames:     []string{"0.AlphaDash"},
 			Classification: AlphaDashError,
 			Message:        "AlphaDash",
 		},
 		Error{
-			FieldNames:     []string{"AlphaDashDot"},
+			FieldNames:     []string{"0.AlphaDashDot"},
 			Classification: AlphaDashDotError,
 			Message:        "AlphaDashDot",
 		},
 		Error{
-			FieldNames:     []string{"MinSize"},
+			FieldNames:     []string{"0.MinSize"},
 			Classification: MinSizeError,
 			Message:        "MinSize",
 		},
 		Error{
-			FieldNames:     []string{"MinSizeSlice"},
+			FieldNames:     []string{"0.MinSizeSlice"},
 			Classification: MinSizeError,
 			Message:        "MinSize",
 		},
 		Error{
-			FieldNames:     []string{"MaxSize"},
+			FieldNames:     []string{"0.MaxSize"},
 			Classification: MaxSizeError,
 			Message:        "MaxSize",
 		},
 		Error{
-			FieldNames:     []string{"MaxSizeSlice"},
+			FieldNames:     []string{"0.MaxSizeSlice"},
 			Classification: MaxSizeError,
 			Message:        "MaxSize",
 		},
 		Error{
-			FieldNames:     []string{"Email"},
+			FieldNames:     []string{"0.Email"},
 			Classification: EmailError,
 			Message:        "Email",
 		},
 		Error{
-			FieldNames:     []string{"Url"},
+			FieldNames:     []string{"0.Url"},
 			Classification: UrlError,
 			Message:        "Url",
 		},
 		Error{
-			FieldNames:     []string{"Range"},
+			FieldNames:     []string{"0.Range"},
 			Classification: RangeError,
 			Message:        "Range",
 		},
 		Error{
-			FieldNames:     []string{"In"},
+			FieldNames:     []string{"0.In"},
 			Classification: DefaultError,
 			Message:        "Default",
 		},
 		Error{
-			FieldNames:     []string{"InInvalid"},
+			FieldNames:     []string{"0.InInvalid"},
 			Classification: InError,
 			Message:        "In",
 		},
 		Error{
-			FieldNames:     []string{"NotIn"},
+			FieldNames:     []string{"0.NotIn"},
 			Classification: NotInError,
 			Message:        "NotIn",
 		},
 		Error{
-			FieldNames:     []string{"Include"},
+			FieldNames:     []string{"0.Include"},
 			Classification: IncludeError,
 			Message:        "Include",
 		},
 		Error{
-			FieldNames:     []string{"Exclude"},
+			FieldNames:     []string{"0.Exclude"},
 			Classification: ExcludeError,
 			Message:        "Exclude",
 		},
@@ -311,11 +307,6 @@ func (s *validateSuite) Test_ListOfValidCustomValidations(c *C) {
 			InInvalid:    "1",
 			Include:      "abc",
 		},
-	}, dummyRequest())
+	})
 	c.Assert(errs, IsNil)
-}
-
-func dummyRequest() *http.Request {
-	req, _ := http.NewRequest("GET", "", nil)
-	return req
 }

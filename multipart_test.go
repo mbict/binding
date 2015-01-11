@@ -34,10 +34,17 @@ func (s *multipartSuite) Test_NotAStruct(c *C) {
 }
 
 func (s *multipartSuite) Test_HappyPath(c *C) {
-	blogPost := BlogPost{Post: Post{Title: "Glorious Post Title"}, Id: 1, Author: Person{Name: "Matt Holt"}}
+	blogPost := BlogPost{
+		Post: Post{Title: "Glorious Post Title"}, Id: 1,
+		Author:       Person{Name: "Matt Holt"},
+		Coauthor:     &Person{Name: "The other guy"},
+		Readers:      []Person{Person{Name: "Person a"}, Person{Name: "Person b", Email: "b@test.com"}},
+		Contributors: []*Person{&Person{Name: "Michael Boke", Email: "mb@test.com"}, &Person{Name: "The other guy"}},
+	}
 	b, w := makeMultipartPayload(blogPost)
 	req := newMultipartRequest(b, w.FormDataContentType())
 	w.Close()
+
 	response := BlogPost{}
 	errs := MultipartForm(&response, req)
 
@@ -69,7 +76,7 @@ func (s *multipartSuite) Test_EmptyBody(c *C) {
 	c.Assert(errs, HasLen, 4)
 	c.Assert(errs[0], DeepEquals, Error{FieldNames: []string{"Title"}, Classification: "RequiredError", Message: "Required"})
 	c.Assert(errs[1], DeepEquals, Error{FieldNames: []string{"Id"}, Classification: "RequiredError", Message: "Required"})
-	c.Assert(errs[2], DeepEquals, Error{FieldNames: []string{"Name"}, Classification: "RequiredError", Message: "Required"})
+	c.Assert(errs[2], DeepEquals, Error{FieldNames: []string{"Author.Name"}, Classification: "RequiredError", Message: "Required"})
 	c.Assert(errs[3], DeepEquals, Error{FieldNames: []string{"Title"}, Classification: "LengthError", Message: "Life is too short"})
 	c.Assert(response, DeepEquals, blogPost)
 }
@@ -112,7 +119,7 @@ func (s *multipartSuite) Test_RequiredNestedStructFieldNotSpecified(c *C) {
 	errs := MultipartForm(&response, req)
 
 	c.Assert(errs, HasLen, 1)
-	c.Assert(errs[0], DeepEquals, Error{FieldNames: []string{"Name"}, Classification: "RequiredError", Message: "Required"})
+	c.Assert(errs[0], DeepEquals, Error{FieldNames: []string{"Author.Name"}, Classification: "RequiredError", Message: "Required"})
 	c.Assert(response, DeepEquals, blogPost)
 }
 
@@ -139,7 +146,7 @@ func (s *multipartSuite) Test_BadEncoding(c *C) {
 	c.Assert(errs[0], DeepEquals, Error{FieldNames: []string{}, Classification: DeserializationError, Message: "no multipart boundary param in Content-Type"})
 	c.Assert(errs[1], DeepEquals, Error{FieldNames: []string{"Title"}, Classification: "RequiredError", Message: "Required"})
 	c.Assert(errs[2], DeepEquals, Error{FieldNames: []string{"Id"}, Classification: "RequiredError", Message: "Required"})
-	c.Assert(errs[3], DeepEquals, Error{FieldNames: []string{"Name"}, Classification: "RequiredError", Message: "Required"})
+	c.Assert(errs[3], DeepEquals, Error{FieldNames: []string{"Author.Name"}, Classification: "RequiredError", Message: "Required"})
 	c.Assert(errs[4], DeepEquals, Error{FieldNames: []string{"Title"}, Classification: "LengthError", Message: "Life is too short"})
 	c.Assert(response, DeepEquals, BlogPost{})
 }
@@ -162,8 +169,20 @@ func makeMultipartPayload(blogPost BlogPost) (*bytes.Buffer, *multipart.Writer) 
 	for _, value := range blogPost.Ratings {
 		writer.WriteField("rating", strconv.Itoa(value))
 	}
-	writer.WriteField("name", blogPost.Author.Name)
-	writer.WriteField("email", blogPost.Author.Email)
+	writer.WriteField("author.name", blogPost.Author.Name)
+	writer.WriteField("author.email", blogPost.Author.Email)
+	if blogPost.Coauthor != nil {
+		writer.WriteField("coauthor.name", blogPost.Coauthor.Name)
+		writer.WriteField("coauthor.email", blogPost.Coauthor.Email)
+	}
+	for key, value := range blogPost.Contributors {
+		writer.WriteField("contributors."+strconv.Itoa(key)+".name", value.Name)
+		writer.WriteField("contributors."+strconv.Itoa(key)+".email", value.Email)
+	}
+	for key, value := range blogPost.Readers {
+		writer.WriteField("readers."+strconv.Itoa(key)+".name", value.Name)
+		writer.WriteField("readers."+strconv.Itoa(key)+".email", value.Email)
+	}
 	return body, writer
 }
 
