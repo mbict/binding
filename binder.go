@@ -202,7 +202,7 @@ func validateStruct(errors Errors, obj interface{}, path string) Errors {
 
 		// Match rules.
 	VALIDATE_RULES:
-		for _, rule := range strings.Split(field.Tag.Get("binding"), ";") {
+		for _, rule := range strings.Split(field.Tag.Get("validate"), ";") {
 			if len(rule) == 0 {
 				continue
 			}
@@ -505,8 +505,8 @@ func setWithProperType(valueKind reflect.Kind, val string, structField reflect.V
 		boolVal, err := strconv.ParseBool(val)
 		if err != nil {
 			errors.Add([]string{nameInTag}, BooleanTypeError, "Value could not be parsed as boolean")
-		} else if boolVal {
-			structField.SetBool(true)
+		} else {
+			structField.SetBool(boolVal)
 		}
 	case reflect.Float32:
 		if val == "" {

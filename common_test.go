@@ -18,13 +18,13 @@ func Test(t *testing.T) { TestingT(t) }
 type (
 	// For basic test cases with a required field
 	Post struct {
-		Title   string `form:"title" json:"title" binding:"Required"`
+		Title   string `form:"title" json:"title" validate:"Required"`
 		Content string `form:"content" json:"content"`
 	}
 
 	// To be used as a nested struct (with a required field)
 	Person struct {
-		Name  string `form:"name" json:"name" binding:"Required"`
+		Name  string `form:"name" json:"name" validate:"Required"`
 		Email string `form:"email" json:"email"`
 	}
 
@@ -33,7 +33,7 @@ type (
 	// and multiple file uploads
 	BlogPost struct {
 		Post
-		Id           int                     `form:"id" binding:"Required"`
+		Id           int                     `form:"id" validate:"Required"`
 		Ignored      string                  `form:"-" json:"-"`
 		Ratings      []int                   `form:"rating" json:"ratings"`
 		Author       Person                  `json:"author"`
@@ -50,22 +50,22 @@ type (
 	}
 
 	SadForm struct {
-		AlphaDash    string   `form:"AlphaDash" binding:"AlphaDash"`
-		AlphaDashDot string   `form:"AlphaDashDot" binding:"AlphaDashDot"`
-		MinSize      string   `form:"MinSize" binding:"MinSize(5)"`
-		MinSizeSlice []string `form:"MinSizeSlice" binding:"MinSize(5)"`
-		MaxSize      string   `form:"MaxSize" binding:"MaxSize(1)"`
-		MaxSizeSlice []string `form:"MaxSizeSlice" binding:"MaxSize(1)"`
-		Email        string   `form:"Email" binding:"Email"`
-		Url          string   `form:"Url" binding:"Url"`
-		UrlEmpty     string   `form:"UrlEmpty" binding:"Url"`
-		Range        int      `form:"Range" binding:"Range(1,2)"`
-		RangeInvalid int      `form:"RangeInvalid" binding:"Range(1)"`
-		In           string   `form:"In" binding:"Default(0);In(1,2,3)"`
-		InInvalid    string   `form:"InInvalid" binding:"In(1,2,3)"`
-		NotIn        string   `form:"NotIn" binding:"NotIn(1,2,3)"`
-		Include      string   `form:"Include" binding:"Include(a)"`
-		Exclude      string   `form:"Exclude" binding:"Exclude(a)"`
+		AlphaDash    string   `form:"AlphaDash" validate:"AlphaDash"`
+		AlphaDashDot string   `form:"AlphaDashDot" validate:"AlphaDashDot"`
+		MinSize      string   `form:"MinSize" validate:"MinSize(5)"`
+		MinSizeSlice []string `form:"MinSizeSlice" validate:"MinSize(5)"`
+		MaxSize      string   `form:"MaxSize" validate:"MaxSize(1)"`
+		MaxSizeSlice []string `form:"MaxSizeSlice" validate:"MaxSize(1)"`
+		Email        string   `form:"Email" validate:"Email"`
+		Url          string   `form:"Url" validate:"Url"`
+		UrlEmpty     string   `form:"UrlEmpty" validate:"Url"`
+		Range        int      `form:"Range" validate:"Range(1,2)"`
+		RangeInvalid int      `form:"RangeInvalid" validate:"Range(1)"`
+		In           string   `form:"In" validate:"Default(0);In(1,2,3)"`
+		InInvalid    string   `form:"InInvalid" validate:"In(1,2,3)"`
+		NotIn        string   `form:"NotIn" validate:"NotIn(1,2,3)"`
+		Include      string   `form:"Include" validate:"Include(a)"`
+		Exclude      string   `form:"Exclude" validate:"Exclude(a)"`
 	}
 )
 
