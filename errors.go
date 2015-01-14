@@ -1,5 +1,10 @@
 package binding
 
+import (
+	"fmt"
+	"strings"
+)
+
 const (
 	ContentTypeError     = "ContentTypeError"
 	DeserializationError = "DeserializationError"
@@ -143,6 +148,28 @@ func (e *Errors) Get(class, fieldName string) Errors {
 		}
 	}
 	return errs
+}
+
+func (e Errors) Error() (message string) {
+	len := e.Len()
+	if len == 0 {
+		return ""
+	}
+	if len == 1 {
+		message = "There is a error : "
+	} else {
+		message = "There are multiple errors : "
+	}
+	var first = true
+	for _, err := range e {
+		if first == true {
+			first = false
+		} else {
+			message = message + ", "
+		}
+		message = message + fmt.Sprintf("[%s : %s]", strings.Join(err.FieldNames, ", "), err.Error())
+	}
+	return message
 }
 
 // Fields returns the list of field names this error is
