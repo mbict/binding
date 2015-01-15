@@ -78,6 +78,34 @@ func (s *validateSuite) Test_NestedStructFieldRequired(c *C) {
 	})
 }
 
+func (s *validateSuite) Test_StructureSliceRequired(c *C) {
+	errs := validate(BlogPost{
+		Id: 1,
+		Post: Post{
+			Title:   "Behold The Title!",
+			Content: "And some content",
+		},
+		Author: Person{
+			Name: "Matt Holt",
+		},
+		Readers:      []Person{Person{Name: ""}, Person{Name: "Person b", Email: "b@test.com"}},
+		Contributors: []*Person{&Person{Name: "Michael Boke", Email: "mb@test.com"}, &Person{Name: ""}},
+	})
+	c.Assert(errs, NotNil)
+	c.Assert(errs, DeepEquals, Errors{
+		Error{
+			FieldNames:     []string{"Readers.0.Name"},
+			Classification: RequiredError,
+			Message:        "Required",
+		},
+		Error{
+			FieldNames:     []string{"Contributors.1.Name"},
+			Classification: RequiredError,
+			Message:        "Required",
+		},
+	})
+}
+
 func (s *validateSuite) Test_RequiredFieldMissingInNestedStructPointer(c *C) {
 	errs := validate(BlogPost{
 		Id: 1,

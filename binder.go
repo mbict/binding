@@ -198,6 +198,14 @@ func validateStruct(errors Errors, obj interface{}, path string) Errors {
 				fieldPath = path + field.Name + "."
 			}
 			errors = validateStruct(errors, fieldValue, fieldPath)
+			// Validate structure slices
+		} else if field.Type.Kind() == reflect.Slice &&
+			(field.Type.Elem().Kind() == reflect.Struct ||
+				(field.Type.Elem().Kind() == reflect.Ptr && field.Type.Elem().Elem().Kind() == reflect.Struct)) {
+			for i := 0; i < fieldVal.Len(); i++ {
+				fieldPath := path + field.Name + "." + strconv.Itoa(i) + "."
+				errors = validateStruct(errors, fieldVal.Index(i).Interface(), fieldPath)
+			}
 		}
 
 		// Match rules.
