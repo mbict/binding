@@ -138,6 +138,37 @@ func main() {
 }
 ```
 
+#### Structs and slices example
+
+*Html post values*
+```javascript
+author.id = "1"
+author.name = "J. Smith"
+reviewers.1.id = "2"
+reviewers.1.name = "A. Jolie"
+reviewers.2.id = "3"
+reviewers.2.name = "M. boke"
+```
+
+*Structure*
+
+```go
+type Person struct {
+	Id			int			`form:"id"`
+	Name		string 		`form:"name"`
+}
+
+type Book struct {
+	Author    	Person		`form:"author"`
+	Reviewers 	[]Person	`form:"reviewers"`
+}
+
+func(_ http.ResponseWriter, req *http.Request) {
+	book := Book{}
+	errs := binding.Bind(&book, req)
+}
+```
+
 ### Json
 
 `binding.Json` deserializes JSON data in the payload of the request. It does the following things:
@@ -146,6 +177,3 @@ func main() {
  2. Performs validation with `binding.Validate`
  3. Returns any validation errors
 
-## Credits
-
-This package is forked from [macaron-contrib/binding](https://github.com/macaron-contrib/binding) with modifications.

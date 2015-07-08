@@ -2,6 +2,7 @@ package binding
 
 import (
 	"fmt"
+	"html/template"
 	"strings"
 )
 
@@ -26,6 +27,19 @@ const (
 	ExcludeError      = "ExcludeError"
 	DefaultError      = "DefaultError"
 )
+
+// Template functions for errors
+var TemplateFuncs template.FuncMap = template.FuncMap{
+	"hasError": func(errors Errors, fieldPath ...string) bool {
+		return errors.HasField(strings.Join(fieldPath, "."))
+	},
+	"fieldErrors": func(errors Errors, fieldPath ...string) Errors {
+		return errors.ForField(strings.Join(fieldPath, "."))
+	},
+	"classErrors": func(errors Errors, classification string) Errors {
+		return errors.WithClass(classification)
+	},
+}
 
 type (
 	// Errors may be generated during deserialization, binding,

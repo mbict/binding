@@ -28,7 +28,7 @@ func (s *fileSuite) Test_SingleFile(c *C) {
 			data:      "All your binding are belong to us",
 		},
 	})
-	MultipartForm(&blogPost, req)
+	MultipartForm.Bind(&blogPost, req)
 
 	c.Assert(blogPost.HeaderImage, NotNil)
 	c.Assert(blogPost.HeaderImage.Filename, Equals, "message.txt")
@@ -51,7 +51,7 @@ func (s *fileSuite) Test_MultipleFiles(c *C) {
 			data:      "@bradfitz has a Go time machine: https://twitter.com/mholt6/status/459463953395875840",
 		},
 	})
-	MultipartForm(&blogPost, req)
+	MultipartForm.Bind(&blogPost, req)
 
 	c.Assert(blogPost.HeaderImage, IsNil)
 
@@ -81,7 +81,7 @@ func (s *fileSuite) Test_SingleFileAndMultipleFiles(c *C) {
 			data:      "This tool translates JSON into Go structs: http://mholt.github.io/json-to-go/",
 		},
 	})
-	MultipartForm(&blogPost, req)
+	MultipartForm.Bind(&blogPost, req)
 
 	c.Assert(blogPost.HeaderImage, NotNil)
 	c.Assert(blogPost.HeaderImage.Filename, Equals, "social media.txt")

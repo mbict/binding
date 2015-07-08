@@ -29,7 +29,7 @@ var _ = Suite(&miscSuite{})
 func (s *miscSuite) Test_AllTypes(c *C) {
 	test := Everything{}
 	req := newRequest(`POST`, ``, `integer=-1&integer8=-8&integer16=-16&integer32=-32&integer64=-64&uinteger=1&uinteger8=8&uinteger16=16&uinteger32=32&uinteger64=64&boolean_1=true&fl32_1=32.3232&fl64_1=-64.6464646464&str=string`, formContentType)
-	errs := Form(&test, req)
+	errs := Form.Bind(&test, req)
 
 	c.Assert(errs, IsNil)
 	c.Assert(test, DeepEquals, Everything{
@@ -53,7 +53,7 @@ func (s *miscSuite) Test_AllTypes(c *C) {
 func (s *miscSuite) Test_AllTypesError(c *C) {
 	test := Everything{}
 	req := newRequest(`POST`, ``, `integer=&integer8=asdf&integer16=--&integer32=&integer64=dsf&uinteger=&uinteger8=asdf&uinteger16=+&uinteger32= 32 &uinteger64=+%20+&boolean_1=&boolean_2=asdf&fl32_1=asdf&fl32_2=&fl64_1=&fl64_2=asdfstr`, formContentType)
-	errs := Form(&test, req)
+	errs := Form.Bind(&test, req)
 
 	c.Assert(errs, IsNil)
 	c.Assert(test, DeepEquals, Everything{})

@@ -16,7 +16,7 @@ var _ = Suite(&multipartSuite{})
 func (s *multipartSuite) Test_NotByReference(c *C) {
 	post := Post{}
 	req := newMultipartRequest(bytes.NewBufferString(""), "")
-	errs := MultipartForm(post, req)
+	errs := MultipartForm.Bind(post, req)
 
 	c.Assert(errs, NotNil)
 	c.Assert(errs, HasLen, 1)
@@ -26,7 +26,7 @@ func (s *multipartSuite) Test_NotByReference(c *C) {
 func (s *multipartSuite) Test_NotAStruct(c *C) {
 	test := int(1)
 	req := newMultipartRequest(bytes.NewBufferString(""), "")
-	errs := MultipartForm(&test, req)
+	errs := MultipartForm.Bind(&test, req)
 
 	c.Assert(errs, NotNil)
 	c.Assert(errs, HasLen, 1)
@@ -46,7 +46,7 @@ func (s *multipartSuite) Test_HappyPath(c *C) {
 	w.Close()
 
 	response := BlogPost{}
-	errs := MultipartForm(&response, req)
+	errs := MultipartForm.Bind(&response, req)
 
 	c.Assert(errs, IsNil)
 	c.Assert(response, DeepEquals, blogPost)
@@ -59,7 +59,7 @@ func (s *multipartSuite) Test_FormValueCalledBeforeReader(c *C) {
 	w.Close()
 	req.FormValue("foo") //called before multipart form
 	response := BlogPost{}
-	errs := MultipartForm(&response, req)
+	errs := MultipartForm.Bind(&response, req)
 
 	c.Assert(errs, IsNil)
 	c.Assert(response, DeepEquals, blogPost)
@@ -71,7 +71,7 @@ func (s *multipartSuite) Test_EmptyBody(c *C) {
 	req := newMultipartRequest(b, w.FormDataContentType())
 	w.Close()
 	response := BlogPost{}
-	errs := MultipartForm(&response, req)
+	errs := MultipartForm.Bind(&response, req)
 
 	c.Assert(errs, HasLen, 4)
 	c.Assert(errs[0], DeepEquals, Error{FieldNames: []string{"Title"}, Classification: "RequiredError", Message: "Required"})
@@ -87,7 +87,7 @@ func (s *multipartSuite) Test_MissingRequiredFieldId(c *C) {
 	req := newMultipartRequest(b, w.FormDataContentType())
 	w.Close()
 	response := BlogPost{}
-	errs := MultipartForm(&response, req)
+	errs := MultipartForm.Bind(&response, req)
 
 	c.Assert(errs, NotNil)
 	c.Assert(errs, HasLen, 1)
@@ -101,7 +101,7 @@ func (s *multipartSuite) Test_RequiredEmbeddedStructFieldNotSpecified(c *C) {
 	req := newMultipartRequest(b, w.FormDataContentType())
 	w.Close()
 	response := BlogPost{}
-	errs := MultipartForm(&response, req)
+	errs := MultipartForm.Bind(&response, req)
 
 	c.Assert(errs, NotNil)
 	c.Assert(errs, HasLen, 2)
@@ -116,7 +116,7 @@ func (s *multipartSuite) Test_RequiredNestedStructFieldNotSpecified(c *C) {
 	req := newMultipartRequest(b, w.FormDataContentType())
 	w.Close()
 	response := BlogPost{}
-	errs := MultipartForm(&response, req)
+	errs := MultipartForm.Bind(&response, req)
 
 	c.Assert(errs, HasLen, 1)
 	c.Assert(errs[0], DeepEquals, Error{FieldNames: []string{"Author.Name"}, Classification: "RequiredError", Message: "Required"})
@@ -129,7 +129,7 @@ func (s *multipartSuite) Test_MultipleValues(c *C) {
 	req := newMultipartRequest(b, w.FormDataContentType())
 	w.Close()
 	response := BlogPost{}
-	errs := MultipartForm(&response, req)
+	errs := MultipartForm.Bind(&response, req)
 
 	c.Assert(errs, IsNil)
 	c.Assert(response, DeepEquals, blogPost)
@@ -140,7 +140,7 @@ func (s *multipartSuite) Test_BadEncoding(c *C) {
 	req := newMultipartRequest(b, "multipart/form-data")
 	w.Close()
 	response := BlogPost{}
-	errs := MultipartForm(&response, req)
+	errs := MultipartForm.Bind(&response, req)
 
 	c.Assert(errs, HasLen, 5)
 	c.Assert(errs[0], DeepEquals, Error{FieldNames: []string{}, Classification: DeserializationError, Message: "no multipart boundary param in Content-Type"})

@@ -1,9 +1,7 @@
 package binding
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"mime/multipart"
 	"net/http"
 	"reflect"
@@ -12,6 +10,51 @@ import (
 	"strings"
 	"unicode/utf8"
 )
+
+const (
+	MIMEJSON      = "application/json"
+	MIMEHTML      = "text/html"
+	MIMEXML       = "application/xml"
+	MIMEXML2      = "text/xml"
+	MIMEPlain     = "text/plain"
+	MIMEPOSTForm  = "application/x-www-form-urlencoded"
+	MIMEMultipart = "multipart/form-data"
+)
+
+type Binding interface {
+	Name() string
+	Bind(interface{}, *http.Request) Errors
+}
+
+var (
+	JSON          = jsonBinding{}
+	XML           = xmlBinding{}
+	Form          = formBinding{}
+	MultipartForm = multipartBinding{}
+)
+
+func Default(method, contentType string) Binding {
+	if method == "POST" || method == "PUT" || method == "PATCH" || contentType != "" {
+		switch contentType {
+		case MIMEMultipart:
+			return MultipartForm
+		case MIMEPOSTForm:
+			return Form
+		case MIMEJSON:
+			return JSON
+		case MIMEXML, MIMEXML2:
+			return XML
+		default:
+			/*if contentType == "" {
+				return Errors{ErrorEmptyContentType}
+			} else {
+				return Errors{ErrorUnsupportedContentType}
+			}*/
+			return Form
+		}
+	}
+	return Form
+}
 
 var (
 	ErrorEmptyContentType       = NewError([]string{}, ContentTypeError, "Empty Content-Type")
@@ -24,11 +67,11 @@ func Bind(obj interface{}, req *http.Request) Errors {
 	contentType := req.Header.Get("Content-Type")
 	if req.Method == "POST" || req.Method == "PUT" || req.Method == "PATCH" || contentType != "" {
 		if strings.Contains(contentType, "form-urlencoded") {
-			return Form(obj, req)
+			return Form.Bind(obj, req)
 		} else if strings.Contains(contentType, "multipart/form-data") {
-			return MultipartForm(obj, req)
+			return MultipartForm.Bind(obj, req)
 		} else if strings.Contains(contentType, "json") {
-			return Json(obj, req)
+			return JSON.Bind(obj, req)
 		} else {
 			if contentType == "" {
 				return Errors{ErrorEmptyContentType}
@@ -37,127 +80,8 @@ func Bind(obj interface{}, req *http.Request) Errors {
 			}
 		}
 	} else {
-		return Form(obj, req)
+		return Form.Bind(obj, req)
 	}
-}
-
-// Form is middleware to deserialize form-urlencoded data from the request.
-// It gets data from the form-urlencoded body, if present, or from the
-// query string. It uses the http.Request.ParseForm() method
-// to perform deserialization, then reflection is used to map each field
-// into the struct with the proper type. Structs with primitive slice types
-// (bool, float, int, string) can support deserialization of repeated form
-// keys, for example: key=val1&key=val2&key=val3
-// An interface pointer can be added as a second argument in order
-// to map the struct to a specific interface.
-func Form(formStruct interface{}, req *http.Request) Errors {
-	var bindErrors Errors
-
-	v := reflect.ValueOf(formStruct)
-	if v.Kind() != reflect.Ptr {
-		return append(bindErrors, ErrorInputNotByReference)
-	}
-
-	//reset element to zero variant
-	v = v.Elem()
-	if v.Kind() == reflect.Ptr && v.CanSet() && v.IsNil() {
-		v.Set(reflect.New(v.Type().Elem()))
-	}
-
-	v = reflect.Indirect(v)
-	if v.Kind() != reflect.Struct || !v.CanSet() {
-		return append(bindErrors, ErrorInputIsNotStructure)
-	}
-
-	// Format validation of the request body or the URL would add considerable overhead,
-	// and ParseForm does not complain when URL encoding is off.
-	// Because an empty request body or url can also mean absence of all needed values,
-	// it is not in all cases a bad request, so let's return 422.
-	parseErr := req.ParseForm()
-	if parseErr != nil {
-		bindErrors.Add([]string{}, DeserializationError, parseErr.Error())
-	}
-	mapForm("", v, req.Form, nil, bindErrors)
-	validateErrs := validate(v.Interface())
-	if validateErrs != nil {
-		bindErrors = append(bindErrors, validateErrs...)
-	}
-	return bindErrors
-}
-
-// MultipartForm works much like Form, except it can parse multipart forms
-// and handle file uploads. Like the other deserialization middleware handlers,
-// you can pass in an interface to make the interface available for injection
-// into other handlers later.
-func MultipartForm(formStruct interface{}, req *http.Request) Errors {
-	var bindErrors Errors
-
-	v := reflect.ValueOf(formStruct)
-	if v.Kind() != reflect.Ptr {
-		return append(bindErrors, ErrorInputNotByReference)
-	}
-
-	//reset element to zero variant
-	v = v.Elem()
-	if v.Kind() == reflect.Ptr && v.CanSet() && v.IsNil() {
-		v.Set(reflect.New(v.Type().Elem()))
-	}
-
-	v = reflect.Indirect(v)
-	if v.Kind() != reflect.Struct || !v.CanSet() {
-		return append(bindErrors, ErrorInputIsNotStructure)
-	}
-
-	// This if check is necessary due to https://github.com/martini-contrib/csrf/issues/6
-	if req.MultipartForm == nil {
-		// Workaround for multipart forms returning nil instead of an error
-		// when content is not multipart; see https://code.google.com/p/go/issues/detail?id=6334
-		if multipartReader, err := req.MultipartReader(); err != nil {
-			// TODO: Cover this and the next error check with tests
-			bindErrors.Add([]string{}, DeserializationError, err.Error())
-		} else {
-			form, parseErr := multipartReader.ReadForm(MaxMemory)
-			if parseErr != nil {
-				bindErrors.Add([]string{}, DeserializationError, parseErr.Error())
-			}
-			req.MultipartForm = form
-		}
-	}
-
-	mapForm("", v, req.MultipartForm.Value, req.MultipartForm.File, bindErrors)
-	validateErrs := validate(v.Interface())
-	if validateErrs != nil {
-		return append(bindErrors, validateErrs...)
-	}
-	return bindErrors
-}
-
-// Json is middleware to deserialize a JSON payload from the request
-// into the struct that is passed in. The resulting struct is then
-// validated, but no error handling is actually performed here.
-// An interface pointer can be added as a second argument in order
-// to map the struct to a specific interface.
-func Json(jsonStruct interface{}, req *http.Request) Errors {
-	var bindErrors Errors
-
-	v := reflect.ValueOf(jsonStruct)
-	if v.Kind() != reflect.Ptr {
-		return append(bindErrors, ErrorInputNotByReference)
-	}
-
-	if req.Body != nil {
-		defer req.Body.Close()
-		err := json.NewDecoder(req.Body).Decode(jsonStruct)
-		if err != nil && err != io.EOF {
-			bindErrors.Add([]string{}, DeserializationError, err.Error())
-		}
-	}
-
-	validateErrs := validate(jsonStruct)
-	if validateErrs != nil {
-		return append(bindErrors, validateErrs...)
-	}
-	return bindErrors
 }
 
 var (
