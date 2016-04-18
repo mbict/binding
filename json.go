@@ -28,15 +28,8 @@ func (_ jsonBinding) Bind(dst interface{}, req *http.Request) error {
 		defer req.Body.Close()
 		err := json.NewDecoder(req.Body).Decode(dst)
 		if err != nil && err != io.EOF {
-			return DeserializationError
+			return ErrorDeserialization
 		}
 	}
-
-	/*
-		validateErrs := validate(dst)
-		if validateErrs != nil {
-			return append(bindErrors, validateErrs...)
-		}
-	*/
 	return nil
 }

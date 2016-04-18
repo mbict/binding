@@ -18,13 +18,13 @@ func Test(t *testing.T) { TestingT(t) }
 type (
 	// For basic test cases with a required field
 	Post struct {
-		Title   string `form:"title" json:"title" validate:"Required"`
+		Title   string `form:"title" json:"title"`
 		Content string `form:"content" json:"content"`
 	}
 
 	// To be used as a nested struct (with a required field)
 	Person struct {
-		Name  string `form:"name" json:"name" validate:"Required"`
+		Name  string `form:"name" json:"name"`
 		Email string `form:"email" json:"email"`
 	}
 
@@ -33,7 +33,7 @@ type (
 	// and multiple file uploads
 	BlogPost struct {
 		Post
-		Id           int                     `form:"id" validate:"Required"`
+		Id           int                     `form:"id"`
 		Ignored      string                  `form:"-" json:"-"`
 		Ratings      []int                   `form:"rating" json:"ratings"`
 		Author       Person                  `json:"author"`
@@ -48,48 +48,7 @@ type (
 	EmbedPerson struct {
 		*Person
 	}
-
-	SadForm struct {
-		AlphaDash    string   `form:"AlphaDash" validate:"AlphaDash"`
-		AlphaDashDot string   `form:"AlphaDashDot" validate:"AlphaDashDot"`
-		MinSize      string   `form:"MinSize" validate:"MinSize(5)"`
-		MinSizeSlice []string `form:"MinSizeSlice" validate:"MinSize(5)"`
-		MaxSize      string   `form:"MaxSize" validate:"MaxSize(1)"`
-		MaxSizeSlice []string `form:"MaxSizeSlice" validate:"MaxSize(1)"`
-		Email        string   `form:"Email" validate:"Email"`
-		Url          string   `form:"Url" validate:"Url"`
-		UrlEmpty     string   `form:"UrlEmpty" validate:"Url"`
-		Range        int      `form:"Range" validate:"Range(1,2)"`
-		RangeInvalid int      `form:"RangeInvalid" validate:"Range(1)"`
-		In           string   `form:"In" validate:"Default(0);In(1,2,3)"`
-		InInvalid    string   `form:"InInvalid" validate:"In(1,2,3)"`
-		NotIn        string   `form:"NotIn" validate:"NotIn(1,2,3)"`
-		Include      string   `form:"Include" validate:"Include(a)"`
-		Exclude      string   `form:"Exclude" validate:"Exclude(a)"`
-	}
 )
-
-func (p Post) Validate(errors Errors) Errors {
-	if len(p.Title) < 10 {
-		errors = append(errors, Error{
-			FieldNames:     []string{"Title"},
-			Classification: "LengthError",
-			Message:        "Life is too short",
-		})
-	}
-	return errors
-}
-
-func (p EmbedPerson) Validate(errors Errors) Errors {
-	if len(p.Email) <= 0 {
-		errors = append(errors, Error{
-			FieldNames:     []string{"Email"},
-			Classification: "LengthError",
-			Message:        "Email is too short",
-		})
-	}
-	return errors
-}
 
 func newRequest(method, query, body, contentType string) *http.Request {
 

@@ -1,6 +1,7 @@
 package binding
 
 import (
+	"errors"
 	"mime/multipart"
 	"net/http"
 	"reflect"
@@ -9,6 +10,8 @@ import (
 )
 
 const (
+	jsonContentType = "application/json; charset=utf-8"
+
 	MIMEJSON      = "application/json"
 	MIMEHTML      = "text/html"
 	MIMEXML       = "application/xml"
@@ -24,6 +27,16 @@ type Binding interface {
 }
 
 var (
+	// Maximum amount of memory to use when parsing a multipart form.
+	// Set this to whatever value you prefer; default is 16 MB.
+	MaxMemory = int64(1024 * 1024 * 16)
+
+	ErrorDeserialization        = errors.New("Deserialization error")
+	ErrorEmptyContentType       = errors.New("Empty Content-Type")
+	ErrorUnsupportedContentType = errors.New("Unsupported Content-Type")
+	ErrorInputNotByReference    = errors.New("input binding model is not by reference")
+	ErrorInputIsNotStructure    = errors.New("binding model is required to be structure")
+
 	JSON          = jsonBinding{}
 	XML           = xmlBinding{}
 	Form          = formBinding{}
@@ -52,13 +65,6 @@ func Default(method, contentType string) Binding {
 	}
 	return Form
 }
-
-var (
-	ErrorEmptyContentType       = NewError([]string{}, ContentTypeError, "Empty Content-Type")
-	ErrorUnsupportedContentType = NewError([]string{}, ContentTypeError, "Unsupported Content-Type")
-	ErrorInputNotByReference    = NewError([]string{}, DeserializationError, "input binding model is not by reference")
-	ErrorInputIsNotStructure    = NewError([]string{}, DeserializationError, "binding model is required to be structure")
-)
 
 func Bind(obj interface{}, req *http.Request) error {
 	contentType := req.Header.Get("Content-Type")
@@ -400,41 +406,38 @@ func mapForm(path string, formStruct reflect.Value, form map[string][]string, fo
 					sliceOf := structField.Type().Elem().Kind()
 					slice := reflect.MakeSlice(structField.Type(), numElems, numElems)
 					for i := 0; i < numElems; i++ {
-						setWithProperType(sliceOf, inputValue[i], slice.Index(i), inputFieldName, errors)
+						setWithProperType(sliceOf, inputValue[i], slice.Index(i), inputFieldName)
 					}
 					formStruct.Field(i).Set(slice)
 				} else {
-					setWithProperType(typeField.Type.Kind(), inputValue[0], structField, inputFieldName, errors)
+					setWithProperType(typeField.Type.Kind(), inputValue[0], structField, inputFieldName)
 				}
 			}
 		}
 	}
+	return nil
 }
 
 // This sets the value in a struct of an indeterminate type to the
 // matching value from the request (via Form middleware) in the
-// same type, so that not all deserialized values have to be strings.
+// same type, so that not all deserialize values have to be strings.
 // Supported types are string, int, float, and bool.
-func setWithProperType(valueKind reflect.Kind, val string, structField reflect.Value, nameInTag string, errors Errors) {
+func setWithProperType(valueKind reflect.Kind, val string, structField reflect.Value, nameInTag string) {
 	switch valueKind {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		if val == "" {
 			val = "0"
 		}
-		intVal, err := strconv.ParseInt(val, 10, 64)
-		if err != nil {
-			errors.Add([]string{nameInTag}, IntegerTypeError, "Value could not be parsed as integer")
-		} else {
+
+		if intVal, err := strconv.ParseInt(val, 10, 64); err == nil {
 			structField.SetInt(intVal)
 		}
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		if val == "" {
 			val = "0"
 		}
-		uintVal, err := strconv.ParseUint(val, 10, 64)
-		if err != nil {
-			errors.Add([]string{nameInTag}, IntegerTypeError, "Value could not be parsed as unsigned integer")
-		} else {
+
+		if uintVal, err := strconv.ParseUint(val, 10, 64); err == nil {
 			structField.SetUint(uintVal)
 		}
 	case reflect.Bool:
@@ -446,93 +449,27 @@ func setWithProperType(valueKind reflect.Kind, val string, structField reflect.V
 		if val == "" {
 			val = "false"
 		}
-		boolVal, err := strconv.ParseBool(val)
-		if err != nil {
-			errors.Add([]string{nameInTag}, BooleanTypeError, "Value could not be parsed as boolean")
-		} else {
+
+		if boolVal, err := strconv.ParseBool(val); err == nil {
 			structField.SetBool(boolVal)
 		}
 	case reflect.Float32:
 		if val == "" {
 			val = "0.0"
 		}
-		floatVal, err := strconv.ParseFloat(val, 32)
-		if err != nil {
-			errors.Add([]string{nameInTag}, FloatTypeError, "Value could not be parsed as 32-bit float")
-		} else {
+
+		if floatVal, err := strconv.ParseFloat(val, 32); err == nil {
 			structField.SetFloat(floatVal)
 		}
 	case reflect.Float64:
 		if val == "" {
 			val = "0.0"
 		}
-		floatVal, err := strconv.ParseFloat(val, 64)
-		if err != nil {
-			errors.Add([]string{nameInTag}, FloatTypeError, "Value could not be parsed as 64-bit float")
-		} else {
+
+		if floatVal, err := strconv.ParseFloat(val, 64); err == nil {
 			structField.SetFloat(floatVal)
 		}
 	case reflect.String:
 		structField.SetString(val)
 	}
 }
-
-/*
-// validate by the build in validation rules and tries to run the model ValidateBinder function if set
-func validate(obj interface{}) Errors {
-	if obj == nil {
-		return nil
-	}
-
-	var bindErrors Errors
-	v := reflect.ValueOf(obj)
-	k := v.Kind()
-	if k == reflect.Interface || k == reflect.Ptr {
-		//skip nil pointers
-		v = v.Elem()
-		k = v.Kind()
-	}
-
-	if k == reflect.Slice || k == reflect.Array {
-		for i := 0; i < v.Len(); i++ {
-			e := v.Index(i).Interface()
-			bindErrors = validateStruct(bindErrors, e, strconv.Itoa(i)+".")
-			if validator, ok := e.(Validator); ok {
-				bindErrors = validator.Validate(bindErrors)
-			}
-		}
-	} else {
-		bindErrors = validateStruct(bindErrors, obj, "")
-		if validator, ok := obj.(Validator); ok {
-			bindErrors = validator.Validate(bindErrors)
-		}
-	}
-	return bindErrors
-}
-*/
-
-/*
-type (
-	// Implement the Validator interface to handle some rudimentary
-	// request validation logic so your application doesn't have to.
-	Validator interface {
-		// ValidateBinder validates that the request is OK. It is recommended
-		// that validation be limited to checking values for syntax and
-		// semantics, enough to know that you can make sense of the request
-		// in your application. For example, you might verify that a credit
-		// card number matches a valid pattern, but you probably wouldn't
-		// perform an actual credit card authorization here.
-		Validate(Errors) Errors
-	}
-)
-*/
-
-var (
-	// Maximum amount of memory to use when parsing a multipart form.
-	// Set this to whatever value you prefer; default is 16 MB.
-	MaxMemory = int64(1024 * 1024 * 16)
-)
-
-const (
-	jsonContentType = "application/json; charset=utf-8"
-)

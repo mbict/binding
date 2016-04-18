@@ -14,7 +14,6 @@ func (_ xmlBinding) Name() string {
 }
 
 func (_ xmlBinding) Bind(dst interface{}, req *http.Request) error {
-
 	v := reflect.ValueOf(dst)
 	if v.Kind() != reflect.Ptr {
 		return ErrorInputNotByReference
@@ -24,9 +23,8 @@ func (_ xmlBinding) Bind(dst interface{}, req *http.Request) error {
 		defer req.Body.Close()
 		err := xml.NewDecoder(req.Body).Decode(dst)
 		if err != nil && err != io.EOF {
-			return DeserializationError
+			return ErrorDeserialization
 		}
 	}
-
 	return nil
 }

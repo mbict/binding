@@ -39,23 +39,15 @@ func (_ multipartBinding) Bind(dst interface{}, req *http.Request) error {
 		// when content is not multipart; see https://code.google.com/p/go/issues/detail?id=6334
 		if multipartReader, err := req.MultipartReader(); err != nil {
 			// TODO: Cover this and the next error check with tests
-			return DeserializationError
+			return ErrorDeserialization
 		} else {
 			form, parseErr := multipartReader.ReadForm(MaxMemory)
 			if parseErr != nil {
-				return DeserializationError
+				return ErrorDeserialization
 			}
 			req.MultipartForm = form
 		}
 	}
 
 	return mapForm("", v, req.MultipartForm.Value, req.MultipartForm.File)
-
-	/*
-		validateErrs := validate(v.Interface())
-		if validateErrs != nil {
-			return append(bindErrors, validateErrs...)
-		}
-		return bindErrors
-	*/
 }

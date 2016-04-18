@@ -44,7 +44,7 @@ func (_ formBinding) Bind(dst interface{}, req *http.Request) error {
 	// it is not in all cases a bad request, so let's return 422.
 	parseErr := req.ParseForm()
 	if parseErr != nil {
-		return DeserializationError
+		return ErrorDeserialization
 	}
 	return mapForm("", v, req.Form, nil)
 }
