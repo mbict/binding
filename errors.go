@@ -13,7 +13,7 @@ const (
 	BooleanTypeError     = "BooleanTypeError"
 	FloatTypeError       = "FloatTypeError"
 
-	RequiredError     = "RequiredError"
+/*	RequiredError     = "RequiredError"
 	AlphaDashError    = "AlphaDashError"
 	AlphaDashDotError = "AlphaDashDotError"
 	MinSizeError      = "MinSizeError"
@@ -25,22 +25,23 @@ const (
 	NotInError        = "NotInError"
 	IncludeError      = "IncludeError"
 	ExcludeError      = "ExcludeError"
-	DefaultError      = "DefaultError"
+	DefaultError      = "DefaultError"*/
 )
 
-// Template functions for errors
-var TemplateFuncs template.FuncMap = template.FuncMap{
-	"hasError": func(errors Errors, fieldPath ...string) bool {
-		return errors.HasField(strings.Join(fieldPath, "."))
-	},
-	"fieldErrors": func(errors Errors, fieldPath ...string) Errors {
-		return errors.ForField(strings.Join(fieldPath, "."))
-	},
-	"classErrors": func(errors Errors, classification string) Errors {
-		return errors.WithClass(classification)
-	},
-}
+//// Template functions for errors
+//var TemplateFuncs template.FuncMap = template.FuncMap{
+//	"hasError": func(errors Errors, fieldPath ...string) bool {
+//		return errors.HasField(strings.Join(fieldPath, "."))
+//	},
+//	"fieldErrors": func(errors Errors, fieldPath ...string) Errors {
+//		return errors.ForField(strings.Join(fieldPath, "."))
+//	},
+//	"classErrors": func(errors Errors, classification string) Errors {
+//		return errors.WithClass(classification)
+//	},
+//}
 
+/*
 type (
 	// Errors may be generated during deserialization, binding,
 	// or validation. This type is mapped to the context so you
@@ -201,3 +202,4 @@ func (e Error) Kind() string {
 func (e Error) Error() string {
 	return e.Message
 }
+*/

@@ -20,12 +20,11 @@ func (_ formBinding) Name() string {
 // keys, for example: key=val1&key=val2&key=val3
 // An interface pointer can be added as a second argument in order
 // to map the struct to a specific interface.
-func (_ formBinding) Bind(dst interface{}, req *http.Request) Errors {
-	var bindErrors Errors
+func (_ formBinding) Bind(dst interface{}, req *http.Request) error {
 
 	v := reflect.ValueOf(dst)
 	if v.Kind() != reflect.Ptr {
-		return append(bindErrors, ErrorInputNotByReference)
+		return ErrorInputNotByReference
 	}
 
 	//reset element to zero variant
@@ -36,7 +35,7 @@ func (_ formBinding) Bind(dst interface{}, req *http.Request) Errors {
 
 	v = reflect.Indirect(v)
 	if v.Kind() != reflect.Struct || !v.CanSet() {
-		return append(bindErrors, ErrorInputIsNotStructure)
+		return ErrorInputIsNotStructure
 	}
 
 	// Format validation of the request body or the URL would add considerable overhead,
@@ -45,12 +44,7 @@ func (_ formBinding) Bind(dst interface{}, req *http.Request) Errors {
 	// it is not in all cases a bad request, so let's return 422.
 	parseErr := req.ParseForm()
 	if parseErr != nil {
-		bindErrors.Add([]string{}, DeserializationError, parseErr.Error())
+		return DeserializationError
 	}
-	mapForm("", v, req.Form, nil, bindErrors)
-	validateErrs := validate(v.Interface())
-	if validateErrs != nil {
-		bindErrors = append(bindErrors, validateErrs...)
-	}
-	return bindErrors
+	return mapForm("", v, req.Form, nil)
 }

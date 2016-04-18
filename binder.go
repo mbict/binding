@@ -1,14 +1,11 @@
 package binding
 
 import (
-	"fmt"
 	"mime/multipart"
 	"net/http"
 	"reflect"
-	"regexp"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 )
 
 const (
@@ -23,7 +20,7 @@ const (
 
 type Binding interface {
 	Name() string
-	Bind(interface{}, *http.Request) Errors
+	Bind(interface{}, *http.Request) error
 }
 
 var (
@@ -63,7 +60,7 @@ var (
 	ErrorInputIsNotStructure    = NewError([]string{}, DeserializationError, "binding model is required to be structure")
 )
 
-func Bind(obj interface{}, req *http.Request) Errors {
+func Bind(obj interface{}, req *http.Request) error {
 	contentType := req.Header.Get("Content-Type")
 	if req.Method == "POST" || req.Method == "PUT" || req.Method == "PATCH" || contentType != "" {
 		if strings.Contains(contentType, "form-urlencoded") {
@@ -74,9 +71,9 @@ func Bind(obj interface{}, req *http.Request) Errors {
 			return JSON.Bind(obj, req)
 		} else {
 			if contentType == "" {
-				return Errors{ErrorEmptyContentType}
+				return ErrorEmptyContentType
 			} else {
-				return Errors{ErrorUnsupportedContentType}
+				return ErrorUnsupportedContentType
 			}
 		}
 	} else {
@@ -84,13 +81,15 @@ func Bind(obj interface{}, req *http.Request) Errors {
 	}
 }
 
+/*
 var (
 	alphaDashPattern    = regexp.MustCompile("[^\\d\\w-_]")
 	alphaDashDotPattern = regexp.MustCompile("[^\\d\\w-_\\.]")
 	emailPattern        = regexp.MustCompile("[\\w!#$%&'*+/=?^_`{|}~-]+(?:\\.[\\w!#$%&'*+/=?^_`{|}~-]+)*@(?:[\\w](?:[\\w-]*[\\w])?\\.)+[a-zA-Z0-9](?:[\\w-]*[\\w])?")
 	urlPattern          = regexp.MustCompile(`(http|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?`)
 )
-
+*/
+/*
 // Performs required field checking on a struct
 func validateStruct(errors Errors, obj interface{}, path string) Errors {
 	typ := reflect.TypeOf(obj)
@@ -239,8 +238,9 @@ func validateStruct(errors Errors, obj interface{}, path string) Errors {
 	}
 	return errors
 }
-
+*/
 //validation in function
+/*
 func in(fieldValue interface{}, arr string) bool {
 	val := fmt.Sprintf("%v", fieldValue)
 	vals := strings.Split(arr, ",")
@@ -253,7 +253,7 @@ func in(fieldValue interface{}, arr string) bool {
 	}
 	return isIn
 }
-
+*/
 /*
 func mapFormValues(field string, form map[string][]string) (result []map[string][]string) {
 	for key, values := range form {
@@ -300,7 +300,7 @@ func pathSliceSize(field string, form map[string][]string) int {
 var fhType = reflect.TypeOf((*multipart.FileHeader)(nil))
 
 // Takes values from the form data and puts them into a struct
-func mapForm(path string, formStruct reflect.Value, form map[string][]string, formfile map[string][]*multipart.FileHeader, errors Errors) {
+func mapForm(path string, formStruct reflect.Value, form map[string][]string, formfile map[string][]*multipart.FileHeader) error {
 	formStruct = reflect.Indirect(formStruct)
 	typ := formStruct.Type()
 
@@ -316,14 +316,19 @@ func mapForm(path string, formStruct reflect.Value, form map[string][]string, fo
 		if typeField.Anonymous {
 			if typeField.Type.Kind() == reflect.Ptr {
 				structField.Set(reflect.New(typeField.Type.Elem()))
-				mapForm(path, structField.Elem(), form, formfile, errors)
+				if err := mapForm(path, structField.Elem(), form, formfile); err != nil {
+					return err
+				}
 				if reflect.DeepEqual(structField.Elem().Interface(), reflect.Zero(structField.Elem().Type()).Interface()) {
 					structField.Set(reflect.Zero(structField.Type()))
 				}
 			} else {
-				mapForm(path, structField, form, formfile, errors)
+				if err := mapForm(path, structField, form, formfile); err != nil {
+					return err
+				}
 			}
-		} else if structField.Kind() == reflect.Slice && structField.Type().Elem() == fhType { //slice of file uploads
+		} else if structField.Kind() == reflect.Slice && structField.Type().Elem() == fhType {
+			//slice of file uploads
 			inputFile, exists := formfile[path+inputFieldName]
 			if exists {
 				numFiles := len(inputFile)
@@ -335,7 +340,8 @@ func mapForm(path string, formStruct reflect.Value, form map[string][]string, fo
 					structField.Set(slice)
 				}
 			}
-		} else if structField.Type() == fhType { //single file
+		} else if structField.Type() == fhType {
+			//single file
 			inputFile, exists := formfile[path+inputFieldName]
 			if exists && len(inputFile) >= 1 {
 				structField.Set(reflect.ValueOf(inputFile[0]))
@@ -347,12 +353,16 @@ func mapForm(path string, formStruct reflect.Value, form map[string][]string, fo
 					if structField.IsNil() {
 						structField.Set(reflect.New(typeField.Type.Elem()))
 					}
-					mapForm(path+inputFieldName+".", structField.Elem(), form, formfile, errors)
+					if err := mapForm(path+inputFieldName+".", structField.Elem(), form, formfile); err != nil {
+						return err
+					}
 					break
 				}
 			}
 		} else if typeField.Type.Kind() == reflect.Struct {
-			mapForm(path+inputFieldName+".", structField, form, formfile, errors)
+			if err := mapForm(path+inputFieldName+".", structField, form, formfile); err != nil {
+				return err
+			}
 		} else if typeField.Type.Kind() == reflect.Slice &&
 			(typeField.Type.Elem().Kind() == reflect.Struct ||
 				(typeField.Type.Elem().Kind() == reflect.Ptr && typeField.Type.Elem().Elem().Kind() == reflect.Struct)) {
@@ -373,7 +383,9 @@ func mapForm(path string, formStruct reflect.Value, form map[string][]string, fo
 				if sliceValue.Kind() == reflect.Ptr && sliceValue.IsNil() {
 					sliceValue.Set(reflect.New(sliceValue.Type().Elem()))
 				}
-				mapForm(path+inputFieldName+"."+strconv.Itoa(i)+".", sliceValue, form, formfile, errors)
+				if err := mapForm(path+inputFieldName+"."+strconv.Itoa(i)+".", sliceValue, form, formfile); err != nil {
+					return err
+				}
 			}
 
 		} else if inputFieldName := typeField.Tag.Get("form"); inputFieldName != "" {
@@ -465,6 +477,7 @@ func setWithProperType(valueKind reflect.Kind, val string, structField reflect.V
 	}
 }
 
+/*
 // validate by the build in validation rules and tries to run the model ValidateBinder function if set
 func validate(obj interface{}) Errors {
 	if obj == nil {
@@ -496,7 +509,9 @@ func validate(obj interface{}) Errors {
 	}
 	return bindErrors
 }
+*/
 
+/*
 type (
 	// Implement the Validator interface to handle some rudimentary
 	// request validation logic so your application doesn't have to.
@@ -510,6 +525,7 @@ type (
 		Validate(Errors) Errors
 	}
 )
+*/
 
 var (
 	// Maximum amount of memory to use when parsing a multipart form.
