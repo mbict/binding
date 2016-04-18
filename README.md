@@ -1,3 +1,4 @@
+[![wercker status](https://app.wercker.com/status/69476f936eb47a347f8aa60af7c7c84e/s "wercker status")](https://app.wercker.com/project/bykey/69476f936eb47a347f8aa60af7c7c84e)
 [![Build Status](https://travis-ci.org/mbict/go-binding.png?branch=master)](https://travis-ci.org/mbict/go-binding)
 [![GoDoc](https://godoc.org/github.com/mbict/go-binding?status.png)](http://godoc.org/github.com/mbict/go-binding)
 [![GoCover](http://gocover.io/_badge/github.com/mbict/go-binding)](http://gocover.io/github.com/mbict/go-binding)
